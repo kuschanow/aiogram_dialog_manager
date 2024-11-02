@@ -17,7 +17,8 @@ class DialogManager:
 
         self.router = router
 
-    async def get_dialog(self, dialog_data: Dict, dialog_id: str) -> Dialog:
+    async def get_dialog(self, dialog_id: str) -> Dialog:
+        dialog_data = await self.storage.get_dict(f"dialog:{dialog_id}")
         return Dialog.from_dict(dialog_data, dialog_id, self.bot)
 
     async def save_dialog(self, instance: Dialog):
@@ -38,16 +39,12 @@ class DialogManager:
         data: Dict[str, Any]
     ) -> Any:
         state_data = await data["state"].get_data()
-        dialog_data = {"data": None, "id": None}
         if "dialog_id" in state_data:
-            dialog_data = {"data": await self.storage.get_dict(f"dialog:{state_data['dialog_id']}"), "id": state_data['dialog_id']}
+            data["dialog"] = await self.get_dialog(state_data['dialog_id'])
         elif message.reply_to_message:
             message_info = await self.storage.get_string(f"message_info:{message.chat.id}:{message.reply_to_message.message_id}")
             if message_info:
-                dialog_data = {"data": await self.storage.get_dict(f"dialog:{message_info}"), "id": message_info}
-
-        if dialog_data["id"] and dialog_data["data"]:
-            data["dialog"] = await self.get_dialog(dialog_data["data"], dialog_data["id"])
+                data["dialog"] = await self.get_dialog(message_info)
 
         data["dialog_manager"] = self
 
@@ -62,12 +59,8 @@ class DialogManager:
         data: Dict[str, Any]
     ) -> Any:
         message_info = await self.storage.get_string(f"message_info:{callback.message.chat.id}:{callback.message.message_id}")
-        dialog_data = {"data": None, "id": None}
         if message_info:
-            dialog_data = {"data": await self.storage.get_dict(f"dialog:{message_info}"), "id": message_info}
-
-        if dialog_data["id"] and dialog_data["data"]:
-            data["dialog"] = await self.get_dialog(dialog_data["data"], dialog_data["id"])
+            data["dialog"] = await self.get_dialog(message_info)
             data["dialog_message"] = data["dialog"].messages[callback.message.message_id]
             data["button"] = data["dialog"].messages[callback.message.message_id].menu.get_button_by_id(callback.data[2:])
 

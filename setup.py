@@ -8,7 +8,7 @@ def readme():
 
 setup(
   name='aiogram_dialog_manager',
-  version='1.0.0',
+  version='1.0.1',
   author='kuschanow',
   author_email='kuschanow@gmail.com',
   description='Dialog manager for aiogram.',
