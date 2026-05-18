@@ -1,0 +1,50 @@
+[build-system]
+requires = [
+    "setuptools>=68"
+]
+build-backend = "setuptools.build_meta"
+
+
+[project]
+name = "aiogram_dialog_manager"
+version = "2.0.0"
+authors = [
+    { name = "kuschanow", email = "kuschanow@gmail.com" }
+]
+description = "Dialog manager for aiogram."
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "aiogram>=3",
+    "redis>=4",
+]
+
+license = { file = "LICENSE" }
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]
+addopts = "--cov=src/aiogram_dialog_manager --cov-report=term-missing"
+asyncio_mode = "auto"
+
+[tool.coverage.run]
+source = ["src/aiogram_dialog_manager"]
+omit = []
+
+[tool.coverage.report]
+fail_under = 100
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "@abstractmethod",
+    "^\\s*\\.\\.\\.\\s*$",
+]
+
+[project.urls]
+Homepage = "https://github.com/kuschanow/aiogram_dialog_manager"
+Source = "https://github.com/kuschanow/aiogram_dialog_manager"
+Tracker = "https://github.com/kuschanow/aiogram_dialog_manager/issues"
+Documentation = "https://github.com/kuschanow/aiogram_dialog_manager"
+
+[tool.setuptools.packages.find]
+where = ["src"]
