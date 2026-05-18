@@ -9,7 +9,7 @@ class TestDialogPrototypeRegistry:
     def test_registration_sets_name_property(self, monkeypatch):
         monkeypatch.setattr(DialogPrototype, "_registry", DialogPrototype._registry.copy())
 
-        class MyDialog(DialogPrototype, name="unique_dialog_xyz"):
+        class MyDialog(DialogPrototype, type_name="unique_dialog_xyz"):
             pass
 
         assert MyDialog().name == "unique_dialog_xyz"
@@ -18,11 +18,11 @@ class TestDialogPrototypeRegistry:
     def test_duplicate_name_raises(self, monkeypatch):
         monkeypatch.setattr(DialogPrototype, "_registry", DialogPrototype._registry.copy())
 
-        class First(DialogPrototype, name="dup_dialog_xyz"):
+        class First(DialogPrototype, type_name="dup_dialog_xyz"):
             pass
 
         with pytest.raises(ValueError, match="dup_dialog_xyz"):
-            class Second(DialogPrototype, name="dup_dialog_xyz"):
+            class Second(DialogPrototype, type_name="dup_dialog_xyz"):
                 pass
 
 

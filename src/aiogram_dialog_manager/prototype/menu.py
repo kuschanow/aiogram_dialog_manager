@@ -11,16 +11,16 @@ if TYPE_CHECKING:
 class MenuPrototype(ABC):
     _registry: ClassVar[dict[str, type]] = {}
 
-    def __init_subclass__(cls, name: str = None, **kwargs):
+    def __init_subclass__(cls, type_name: str = None, **kwargs):
         super().__init_subclass__(**kwargs)
-        if name is not None:
-            if name in MenuPrototype._registry:
-                existing = MenuPrototype._registry[name]
+        if type_name is not None:
+            if type_name in MenuPrototype._registry:
+                existing = MenuPrototype._registry[type_name]
                 raise ValueError(
-                    f"MenuPrototype name '{name}' is already registered by {existing.__qualname__}"
+                    f"MenuPrototype name '{type_name}' is already registered by {existing.__qualname__}"
                 )
-            MenuPrototype._registry[name] = cls
-            cls._prototype_name = name
+            MenuPrototype._registry[type_name] = cls
+            cls._prototype_name = type_name
 
     @property
     def name(self) -> str:

@@ -10,7 +10,7 @@ class TestMenuPrototypeRegistry:
     def test_registration_sets_name_property(self, monkeypatch):
         monkeypatch.setattr(MenuPrototype, "_registry", MenuPrototype._registry.copy())
 
-        class MyMenu(MenuPrototype, name="unique_menu_xyz"):
+        class MyMenu(MenuPrototype, type_name="unique_menu_xyz"):
             async def get_buttons(self, dialog, context) -> list[list[ButtonInstance]]:
                 return []
 
@@ -20,12 +20,12 @@ class TestMenuPrototypeRegistry:
     def test_duplicate_name_raises(self, monkeypatch):
         monkeypatch.setattr(MenuPrototype, "_registry", MenuPrototype._registry.copy())
 
-        class First(MenuPrototype, name="dup_menu_xyz"):
+        class First(MenuPrototype, type_name="dup_menu_xyz"):
             async def get_buttons(self, dialog, context) -> list[list[ButtonInstance]]:
                 return []
 
         with pytest.raises(ValueError, match="dup_menu_xyz"):
-            class Second(MenuPrototype, name="dup_menu_xyz"):
+            class Second(MenuPrototype, type_name="dup_menu_xyz"):
                 async def get_buttons(self, dialog, context) -> list[list[ButtonInstance]]:
                     return []
 

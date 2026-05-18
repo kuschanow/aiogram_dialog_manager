@@ -9,7 +9,7 @@ class TestButtonPrototypeRegistry:
     def test_registration_sets_name_property(self, monkeypatch):
         monkeypatch.setattr(ButtonPrototype, "_registry", ButtonPrototype._registry.copy())
 
-        class MyBtn(ButtonPrototype, name="unique_btn_xyz"):
+        class MyBtn(ButtonPrototype, type_name="unique_btn_xyz"):
             async def get_state(self, dialog, context):
                 return "x"
 
@@ -20,12 +20,12 @@ class TestButtonPrototypeRegistry:
     def test_duplicate_name_raises(self, monkeypatch):
         monkeypatch.setattr(ButtonPrototype, "_registry", ButtonPrototype._registry.copy())
 
-        class First(ButtonPrototype, name="dup_btn_xyz"):
+        class First(ButtonPrototype, type_name="dup_btn_xyz"):
             async def get_state(self, dialog, context):
                 return "x"
 
         with pytest.raises(ValueError, match="dup_btn_xyz"):
-            class Second(ButtonPrototype, name="dup_btn_xyz"):
+            class Second(ButtonPrototype, type_name="dup_btn_xyz"):
                 async def get_state(self, dialog, context):
                     return "y"
 

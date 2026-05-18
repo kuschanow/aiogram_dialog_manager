@@ -10,16 +10,16 @@ if TYPE_CHECKING:
 class ButtonPrototype(ABC):
     _registry: ClassVar[dict[str, type]] = {}
 
-    def __init_subclass__(cls, name: str = None, **kwargs):
+    def __init_subclass__(cls, type_name: str = None, **kwargs):
         super().__init_subclass__(**kwargs)
-        if name is not None:
-            if name in ButtonPrototype._registry:
-                existing = ButtonPrototype._registry[name]
+        if type_name is not None:
+            if type_name in ButtonPrototype._registry:
+                existing = ButtonPrototype._registry[type_name]
                 raise ValueError(
-                    f"ButtonPrototype name '{name}' is already registered by {existing.__qualname__}"
+                    f"ButtonPrototype name '{type_name}' is already registered by {existing.__qualname__}"
                 )
-            ButtonPrototype._registry[name] = cls
-            cls._prototype_name = name
+            ButtonPrototype._registry[type_name] = cls
+            cls._prototype_name = type_name
 
     @property
     def name(self) -> str:

@@ -28,19 +28,19 @@ from aiogram_dialog_manager.prototype.base import TextContent
 from aiogram_dialog_manager.instance import ButtonInstance
 
 
-class GreetButton(ButtonPrototype, name="greet_button"):
+class GreetButton(ButtonPrototype, type_name="greet_button"):
     async def get_state(self, dialog, context) -> str:
         return "👋 Say hello"
 
 
-class MainMenu(MenuPrototype, name="main_menu"):
+class MainMenu(MenuPrototype, type_name="main_menu"):
     _greet = GreetButton()
 
     async def get_buttons(self, dialog, context) -> list[list[ButtonInstance]]:
         return [[await self._greet.get_instance(dialog, context)]]
 
 
-class WelcomeMessage(TextMessagePrototype, name="welcome"):
+class WelcomeMessage(TextMessagePrototype, type_name="welcome"):
     _menu = MainMenu()
 
     async def get_text_content(self, dialog, context) -> TextContent:
@@ -51,7 +51,7 @@ class WelcomeMessage(TextMessagePrototype, name="welcome"):
         return await self._menu.get_instance(dialog, context)
 
 
-class MyDialog(DialogPrototype, name="my_dialog"):
+class MyDialog(DialogPrototype, type_name="my_dialog"):
     welcome = WelcomeMessage()
 ```
 
@@ -137,7 +137,7 @@ async def on_greet(
 Each prototype class registers itself by name at definition time using the `name=` keyword argument:
 
 ```python
-class MyButton(ButtonPrototype, name="my_button"):
+class MyButton(ButtonPrototype, type_name="my_button"):
     ...
 ```
 
@@ -174,7 +174,7 @@ Whether messages are saved automatically is controlled by `DialogConfig`, which 
 ```python
 from aiogram_dialog_manager.instance import DialogConfig
 
-class MyDialog(DialogPrototype, name="my_dialog"):
+class MyDialog(DialogPrototype, type_name="my_dialog"):
     async def get_config(self) -> DialogConfig:
         return DialogConfig(
             save_bot_message_nodes=True,    # default — send_* auto-appends to tree

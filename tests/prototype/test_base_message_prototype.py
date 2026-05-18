@@ -9,7 +9,7 @@ class TestBaseMessagePrototypeRegistry:
     def test_registration_sets_name_property(self, monkeypatch):
         monkeypatch.setattr(BaseMessagePrototype, "_registry", BaseMessagePrototype._registry.copy())
 
-        class MyMsg(BaseMessagePrototype, name="unique_msg_xyz"):
+        class MyMsg(BaseMessagePrototype, type_name="unique_msg_xyz"):
             async def get_instance(self, dialog, context) -> BotMessageInstance:
                 return BotMessageInstance(type_name=self.name, menu=None)
 
@@ -22,7 +22,7 @@ class TestBaseMessagePrototypeRegistry:
     def test_duplicate_name_raises(self, monkeypatch):
         monkeypatch.setattr(BaseMessagePrototype, "_registry", BaseMessagePrototype._registry.copy())
 
-        class First(BaseMessagePrototype, name="dup_msg_xyz"):
+        class First(BaseMessagePrototype, type_name="dup_msg_xyz"):
             async def get_instance(self, dialog, context) -> BotMessageInstance:
                 return BotMessageInstance(type_name=self.name, menu=None)
 
@@ -30,7 +30,7 @@ class TestBaseMessagePrototypeRegistry:
                 pass
 
         with pytest.raises(ValueError, match="dup_msg_xyz"):
-            class Second(BaseMessagePrototype, name="dup_msg_xyz"):
+            class Second(BaseMessagePrototype, type_name="dup_msg_xyz"):
                 async def get_instance(self, dialog, context) -> BotMessageInstance:
                     return BotMessageInstance(type_name=self.name, menu=None)
 

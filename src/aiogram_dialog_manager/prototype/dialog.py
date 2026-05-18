@@ -8,16 +8,16 @@ from aiogram_dialog_manager.instance.dialog import DialogInstance, DialogConfig
 class DialogPrototype(ABC):
     _registry: ClassVar[dict[str, type]] = {}
 
-    def __init_subclass__(cls, name: str = None, **kwargs):
+    def __init_subclass__(cls, type_name: str = None, **kwargs):
         super().__init_subclass__(**kwargs)
-        if name is not None:
-            if name in DialogPrototype._registry:
-                existing = DialogPrototype._registry[name]
+        if type_name is not None:
+            if type_name in DialogPrototype._registry:
+                existing = DialogPrototype._registry[type_name]
                 raise ValueError(
-                    f"DialogPrototype name '{name}' is already registered by {existing.__qualname__}"
+                    f"DialogPrototype name '{type_name}' is already registered by {existing.__qualname__}"
                 )
-            DialogPrototype._registry[name] = cls
-            cls._prototype_name = name
+            DialogPrototype._registry[type_name] = cls
+            cls._prototype_name = type_name
 
     @property
     def name(self) -> str:
