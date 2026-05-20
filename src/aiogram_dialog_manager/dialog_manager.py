@@ -145,7 +145,7 @@ class DialogManager:
 
         data["dialog"] = operator
         data["button"] = button
-        data["message"] = message_record
+        data["message_record"] = message_record
         data["menu"] = menu
         data["dialog_manager"] = self
 

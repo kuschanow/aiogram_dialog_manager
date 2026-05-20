@@ -51,7 +51,7 @@ class TestCallbackMiddleware:
         assert captured["button"] is not None
         assert captured["button"].id == btn.id
         assert captured["menu"] is not None
-        assert captured["message"] is not None
+        assert captured["message_record"] is not None
         assert captured["dialog_manager"] is manager
 
     async def test_injects_none_for_non_button_callback(self, mock_bot):
