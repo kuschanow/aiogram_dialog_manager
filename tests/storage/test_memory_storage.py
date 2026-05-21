@@ -62,3 +62,27 @@ class TestMemoryStorage:
         assert "dialog:aaa" in keys
         assert "dialog:bbb" in keys
         assert "active:1:2" not in keys
+
+    async def test_key_without_ttl_does_not_expire(self, memory_storage):
+        await memory_storage.set("k", "v")
+        assert await memory_storage.exists("k") is True
+
+    async def test_key_with_ttl_expires(self, memory_storage):
+        await memory_storage.set("k", "v", ttl=1)
+        import time
+        # manually push expire_at into the past
+        key_val, _ = memory_storage._storage["k"]
+        memory_storage._storage["k"] = (key_val, time.monotonic() - 1)
+        assert await memory_storage.exists("k") is False
+
+    async def test_expired_key_removed_from_index(self, memory_storage):
+        import time
+        await memory_storage.set_value_with_index("button:z", "d1", ttl=1)
+        key_val, _ = memory_storage._storage["button:z"]
+        memory_storage._storage["button:z"] = (key_val, time.monotonic() - 1)
+        keys = await memory_storage.get_keys_by_value("d1")
+        assert "button:z" not in keys
+
+    async def test_set_with_ttl_stores_value(self, memory_storage):
+        await memory_storage.set("k", {"x": 1}, ttl=3600)
+        assert await memory_storage.get_dict("k") == {"x": 1}

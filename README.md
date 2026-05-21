@@ -8,7 +8,9 @@ A library for building structured, stateful dialog flows in [aiogram 3](https://
 - **Stateful dialogs** — each dialog instance maintains a conversation history as a branching tree with data snapshots
 - **Automatic middleware** — `DialogManager` injects the active dialog, button, menu, and message directly into your handlers
 - **13 message types** — text, photo, document, video, audio, animation, voice, sticker, video note, location, contact, poll, and media group
+- **Standalone keyboards** — create inline keyboards independent of any dialog and attach them to arbitrary messages
 - **Pluggable storage** — `MemoryStorage` (in-process) and `RedisStorage` out of the box; custom backends via `BaseStorage`
+- **TTL support** — automatic expiry of dialogs and standalone menus in storage
 - **Typed filters** — `DialogFilter`, `ButtonFilter`, `MenuFilter`, `DialogAccessFilter` for precise handler routing
 
 ## Installation
@@ -134,7 +136,7 @@ async def on_greet(
 | `DialogPrototype` → `DialogInstance` | Created via `DialogManager.create_dialog()` |
 | `TextMessagePrototype` → `BotMessageInstance` | Created by `DialogOperator` internally |
 
-Each prototype class registers itself by name at definition time using the `name=` keyword argument:
+Each prototype class registers itself by name at definition time using the `type_name=` keyword argument:
 
 ```python
 class MyButton(ButtonPrototype, type_name="my_button"):
@@ -164,6 +166,75 @@ The object injected into handlers as `dialog`. Provides:
 | `switch_node(node_id)` | Jump to any node in the dialog tree |
 | `data` | Current dialog data dict (read/write) |
 | `temp` | Per-request scratch dict (not persisted) |
+
+### `DialogManager`
+
+| Method | Description |
+|--------|-------------|
+| `create_dialog(proto, user_id, chat_id, bot, context, ttl)` | Create a new dialog instance |
+| `set_active_dialog(operator)` | Mark a dialog as active for its user+chat |
+| `get_active_dialog(user_id, chat_id, bot)` | Fetch the active dialog for a user+chat |
+| `get_dialog(dialog_id, bot)` | Fetch any dialog by ID |
+| `save(operator, ttl)` | Persist dialog state and refresh button index |
+| `delete(operator)` | Delete a dialog and all its button index entries |
+| `create_standalone_menu(proto, context, ttl)` | Create a keyboard not tied to any dialog; returns `(menu_id, markup)` |
+| `delete_standalone_menu(menu_id)` | Delete a standalone menu and its button index entries |
+| `cleanup_orphaned()` | Delete dialogs with no active pointer and standalone menus with no live buttons; returns count |
+| `set_active_dialog(operator)` | Mark a dialog as active for its user+chat |
+| `set_user_message_filter(dialog, filter_fn)` | Register a per-dialog-type message filter |
+| `set_dead_button_handler(handler)` | Register a callback for button presses that resolve to nothing |
+| `setup(dp)` | Register middleware on the dispatcher |
+
+### Active dialog
+
+Each user+chat pair has at most one **active dialog** — the dialog injected into `Message` handlers via middleware. Set it explicitly after creation:
+
+```python
+op = await manager.create_dialog(proto, user_id, chat_id, bot)
+await manager.set_active_dialog(op)
+```
+
+Creating a new dialog does not automatically replace the active one. Call `set_active_dialog` whenever you want to switch.
+
+### Deleting a dialog
+
+```python
+await manager.delete(dialog)
+```
+
+Removes the dialog, its `active:*` pointer (if it was active), and all button index entries. Safe to call from inside a handler.
+
+### Standalone keyboards
+
+Keyboards that exist independently of any dialog — useful for persistent menus, welcome screens, or any message not part of a dialog flow.
+
+```python
+menu_proto = MainMenu()
+
+# create once — returns fixed button IDs stored in Redis
+menu_id, markup = await manager.create_standalone_menu(menu_proto)
+await bot.send_message(chat_id, "Choose:", reply_markup=markup)
+
+# update keyboard — create a fresh instance with new button IDs
+await manager.delete_standalone_menu(menu_id)
+menu_id, new_markup = await manager.create_standalone_menu(menu_proto, context={...})
+await bot.edit_message_reply_markup(chat_id, message_id, reply_markup=new_markup)
+```
+
+When a standalone button is pressed, the middleware injects `button` and `menu` but `dialog` is `None`.
+
+### Dead button handler
+
+Called when a user presses a button whose dialog or standalone menu no longer exists (expired TTL, deleted, etc.):
+
+```python
+from aiogram_dialog_manager import DeadButtonHandler
+
+async def on_dead_button(callback: CallbackQuery):
+    await callback.answer("This button is no longer active.", show_alert=True)
+
+manager.set_dead_button_handler(on_dead_button)
+```
 
 ### Dialog Tree
 
@@ -218,6 +289,40 @@ storage = RedisStorage(redis)
 
 Custom backend: subclass `aiogram_dialog_manager.storage.BaseStorage` and implement all abstract methods.
 
+**TTL**
+
+Configure default TTL (in seconds) for dialogs and standalone menus:
+
+```python
+manager = DialogManager(
+    storage,
+    dialog_ttl=86400,           # dialogs expire after 24 h of inactivity
+    standalone_menu_ttl=604800, # standalone menus expire after 7 days
+)
+```
+
+TTL is refreshed on every `save()` call for dialogs (and for the `active:*` pointer if the dialog is active). Override per call:
+
+```python
+# this dialog has a shorter TTL
+op = await manager.create_dialog(proto, user_id, chat_id, bot, ttl=3600)
+
+# this standalone menu never expires
+menu_id, markup = await manager.create_standalone_menu(proto, ttl=None)
+```
+
+**Cleanup**
+
+Remove stale records that were never explicitly deleted:
+
+```python
+deleted = await manager.cleanup_orphaned()
+# dialogs with no active pointer → deleted
+# standalone menus with no live button entries → deleted
+```
+
+Run periodically (e.g. via a scheduled task or cron).
+
 ### Filters
 
 All filters work with objects resolved by the middleware.
@@ -253,9 +358,9 @@ DialogAccessFilter()                          # ownership check
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `dialog` | `DialogOperator \| None` | Dialog that owns the button, or `None` if not found in the active branch |
+| `dialog` | `DialogOperator \| None` | Dialog that owns the button, or `None` for standalone / not found |
 | `button` | `ButtonInstance \| None` | The pressed button |
-| `message` | `BotMessageRecord \| None` | The bot message that contained the button |
+| `message_record` | `BotMessageRecord \| None` | The bot message that contained the button (dialog buttons only) |
 | `menu` | `AnyMenuInstance \| None` | The menu that contained the button |
 | `dialog_manager` | `DialogManager` | The manager instance |
 

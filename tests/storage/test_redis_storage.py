@@ -34,13 +34,26 @@ class TestRedisStorage:
         redis = self._make_redis()
         storage = RedisStorage(redis)
         await storage.set("key", {"a": 2})
-        redis.set.assert_awaited_once_with("key", json.dumps({"a": 2}))
+        redis.set.assert_awaited_once_with("key", json.dumps({"a": 2}), ex=None)
+
+    async def test_set_with_ttl(self):
+        redis = self._make_redis()
+        storage = RedisStorage(redis)
+        await storage.set("key", {"a": 2}, ttl=60)
+        redis.set.assert_awaited_once_with("key", json.dumps({"a": 2}), ex=60)
 
     async def test_set_value_with_index(self):
         redis = self._make_redis()
         storage = RedisStorage(redis)
         await storage.set_value_with_index("button:b1", "dialog_id")
-        redis.set.assert_awaited_once_with("button:b1", "dialog_id")
+        redis.set.assert_awaited_once_with("button:b1", "dialog_id", ex=None)
+        redis.sadd.assert_awaited_once_with("value_index:dialog_id", "button:b1")
+
+    async def test_set_value_with_index_with_ttl(self):
+        redis = self._make_redis()
+        storage = RedisStorage(redis)
+        await storage.set_value_with_index("button:b1", "dialog_id", ttl=120)
+        redis.set.assert_awaited_once_with("button:b1", "dialog_id", ex=120)
         redis.sadd.assert_awaited_once_with("value_index:dialog_id", "button:b1")
 
     async def test_get_keys_by_value(self):

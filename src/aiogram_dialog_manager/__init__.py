@@ -1,4 +1,4 @@
-from aiogram_dialog_manager.dialog_manager import DialogManager, UserMessageFilter
+from aiogram_dialog_manager.dialog_manager import DialogManager, UserMessageFilter, DeadButtonHandler
 from aiogram_dialog_manager.dialog_operator import DialogOperator
 from aiogram_dialog_manager.filter import ButtonFilter, DialogAccessFilter, DialogFilter, MenuFilter
 from aiogram_dialog_manager.storage import BaseStorage, MemoryStorage, RedisStorage

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 
 class BaseStorage(ABC):
@@ -12,11 +12,11 @@ class BaseStorage(ABC):
         pass
 
     @abstractmethod
-    async def set(self, key: str, data: Dict[str, Any]):
+    async def set(self, key: str, data: Dict[str, Any], ttl: Optional[int] = None):
         pass
 
     @abstractmethod
-    async def set_value_with_index(self, key: str, data: str):
+    async def set_value_with_index(self, key: str, data: str, ttl: Optional[int] = None):
         pass
 
     @abstractmethod

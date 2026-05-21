@@ -1,5 +1,5 @@
 import json
-from typing import Dict, Any, List
+from typing import Dict, Any, List, Optional
 
 from redis.asyncio.client import Redis
 
@@ -16,11 +16,11 @@ class RedisStorage(BaseStorage):
     async def get_string(self, key: str) -> str | None:
         return await self.redis.get(key)
 
-    async def set(self, key: str, data: Dict[str, Any]):
-        await self.redis.set(key, json.dumps(data))
+    async def set(self, key: str, data: Any, ttl: Optional[int] = None):
+        await self.redis.set(key, json.dumps(data), ex=ttl)
 
-    async def set_value_with_index(self, key: str, data: str):
-        await self.redis.set(key, data)
+    async def set_value_with_index(self, key: str, data: str, ttl: Optional[int] = None):
+        await self.redis.set(key, data, ex=ttl)
         await self.redis.sadd(f"value_index:{data}", key)
 
     async def remove_index(self, data: str):
