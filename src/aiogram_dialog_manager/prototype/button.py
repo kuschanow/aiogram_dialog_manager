@@ -26,19 +26,19 @@ class ButtonPrototype(ABC):
         return self.__class__._prototype_name
 
     @abstractmethod
-    async def get_state(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> str:
+    async def get_state(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> str:
         pass
 
-    async def get_data(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> dict:
+    async def get_data(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> dict:
         return {}
 
-    async def get_inline_additional_parameters(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> Optional[InlineButtonAdditionalParameters]:
+    async def get_inline_additional_parameters(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> Optional[InlineButtonAdditionalParameters]:
         return None
 
-    async def get_common_additional_parameters(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> Optional[ButtonAdditionalParameters]:
+    async def get_common_additional_parameters(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> Optional[ButtonAdditionalParameters]:
         return None
 
-    async def get_instance(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> ButtonInstance:
+    async def get_instance(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> ButtonInstance:
         state = await self.get_state(dialog, context)
         data = await self.get_data(dialog, context)
         inline_additional_parameters = await self.get_inline_additional_parameters(dialog, context)

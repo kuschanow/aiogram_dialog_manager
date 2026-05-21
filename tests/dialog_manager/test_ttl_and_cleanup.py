@@ -37,14 +37,16 @@ class TestTtl:
 
     async def test_standalone_menu_uses_manager_default_ttl(self):
         manager, storage = make_manager(standalone_menu_ttl=600)
-        menu_id, _ = await manager.create_standalone_menu(StubMenu())
-        _, expire_at = storage._storage[f"standalone:{menu_id}"]
+        instance = await StubMenu().get_instance(None, None)
+        await manager.save_standalone_menu(instance)
+        _, expire_at = storage._storage[f"standalone:{instance.id}"]
         assert expire_at is not None
 
     async def test_standalone_menu_ttl_override_none(self):
         manager, storage = make_manager(standalone_menu_ttl=600)
-        menu_id, _ = await manager.create_standalone_menu(StubMenu(), ttl=None)
-        _, expire_at = storage._storage[f"standalone:{menu_id}"]
+        instance = await StubMenu().get_instance(None, None)
+        await manager.save_standalone_menu(instance, ttl=None)
+        _, expire_at = storage._storage[f"standalone:{instance.id}"]
         assert expire_at is None
 
     async def test_active_key_refreshed_with_ttl_on_save(self, mock_bot):
@@ -81,22 +83,23 @@ class TestCleanupOrphaned:
 
     async def test_removes_standalone_menu_without_buttons(self):
         manager, storage = make_manager()
-        menu_id, _ = await manager.create_standalone_menu(StubMenu())
-        # remove all sbutton keys to simulate expired buttons
-        keys = await storage.get_keys_by_value(menu_id)
+        instance = await StubMenu().get_instance(None, None)
+        await manager.save_standalone_menu(instance)
+        keys = await storage.get_keys_by_value(instance.id)
         for key in keys:
             await storage.remove(key)
-        await storage.remove_index(menu_id)
+        await storage.remove_index(instance.id)
         count = await manager.cleanup_orphaned()
         assert count == 1
-        assert not await storage.exists(f"standalone:{menu_id}")
+        assert not await storage.exists(f"standalone:{instance.id}")
 
     async def test_keeps_standalone_menu_with_buttons(self):
         manager, storage = make_manager()
-        menu_id, _ = await manager.create_standalone_menu(StubMenu())
+        instance = await StubMenu().get_instance(None, None)
+        await manager.save_standalone_menu(instance)
         count = await manager.cleanup_orphaned()
         assert count == 0
-        assert await storage.exists(f"standalone:{menu_id}")
+        assert await storage.exists(f"standalone:{instance.id}")
 
     async def test_returns_zero_when_nothing_to_clean(self, mock_bot):
         manager, _ = make_manager()
@@ -150,8 +153,9 @@ class TestDeadButtonHandler:
             called.append(True)
 
         manager.set_dead_button_handler(on_dead)
-        menu_id, markup = await manager.create_standalone_menu(StubMenu())
-        button_id = markup.inline_keyboard[0][0].callback_data[2:]
+        instance = await StubMenu().get_instance(None, None)
+        await manager.save_standalone_menu(instance)
+        button_id = instance.get_markup().inline_keyboard[0][0].callback_data[2:]
 
         callback = MagicMock()
         callback.data = f"b:{button_id}"

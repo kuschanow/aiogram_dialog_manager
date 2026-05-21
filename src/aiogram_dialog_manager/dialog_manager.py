@@ -1,5 +1,4 @@
 import logging
-import uuid
 from typing import Optional, Any, Callable, Awaitable, Dict
 
 from aiogram import Bot, Dispatcher
@@ -12,7 +11,6 @@ from aiogram_dialog_manager.instance.message import BotMessageRecord
 from aiogram_dialog_manager.instance.button import ButtonInstance
 from aiogram_dialog_manager.dialog_operator import DialogOperator
 from aiogram_dialog_manager.prototype.dialog import DialogPrototype
-from aiogram_dialog_manager.prototype.menu import MenuPrototype
 from aiogram_dialog_manager.storage.base import BaseStorage
 
 logger = logging.getLogger(__name__)
@@ -113,23 +111,21 @@ class DialogManager:
             await self._storage.remove(active_key)
         await self._storage.remove(f"dialog:{instance.id}")
 
-    async def create_standalone_menu(
+    async def save_standalone_menu(
         self,
-        proto: MenuPrototype,
-        context: Optional[dict[str, Any]] = None,
+        instance: AnyMenuInstance,
         ttl: Optional[int] = _UNSET,
-    ) -> tuple[str, ReplyMarkupUnion]:
+    ) -> AnyMenuInstance:
         effective_ttl = self._standalone_menu_ttl if ttl is _UNSET else ttl
-        menu_id = uuid.uuid4().hex
-        instance = await proto.get_instance(None, context)
-        await self._storage.set(f"standalone:{menu_id}", instance.model_dump(mode="json"), ttl=effective_ttl)
+        await self._storage.set(f"standalone:{instance.id}", instance.model_dump(mode="json"), ttl=effective_ttl)
         if isinstance(instance, MenuInstance):
             for row in instance.buttons:
                 for btn in row:
-                    await self._storage.set_value_with_index(f"sbutton:{btn.id}", menu_id, ttl=effective_ttl)
-        return menu_id, instance.get_markup()
+                    await self._storage.set_value_with_index(f"sbutton:{btn.id}", instance.id, ttl=effective_ttl)
+        return instance
 
-    async def delete_standalone_menu(self, menu_id: str) -> None:
+    async def delete_standalone_menu(self, menu: AnyMenuInstance | str) -> None:
+        menu_id = menu if isinstance(menu, str) else menu.id
         button_keys = await self._storage.get_keys_by_value(menu_id)
         for key in button_keys:
             await self._storage.remove(key)

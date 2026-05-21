@@ -177,8 +177,8 @@ The object injected into handlers as `dialog`. Provides:
 | `get_dialog(dialog_id, bot)` | Fetch any dialog by ID |
 | `save(operator, ttl)` | Persist dialog state and refresh button index |
 | `delete(operator)` | Delete a dialog and all its button index entries |
-| `create_standalone_menu(proto, context, ttl)` | Create a keyboard not tied to any dialog; returns `(menu_id, markup)` |
-| `delete_standalone_menu(menu_id)` | Delete a standalone menu and its button index entries |
+| `save_standalone_menu(instance, ttl)` | Register a menu instance in storage and index its buttons |
+| `delete_standalone_menu(menu)` | Delete a standalone menu by instance or ID and remove its button index entries |
 | `cleanup_orphaned()` | Delete dialogs with no active pointer and standalone menus with no live buttons; returns count |
 | `set_active_dialog(operator)` | Mark a dialog as active for its user+chat |
 | `set_user_message_filter(dialog, filter_fn)` | Register a per-dialog-type message filter |
@@ -211,14 +211,18 @@ Keyboards that exist independently of any dialog — useful for persistent menus
 ```python
 menu_proto = MainMenu()
 
-# create once — returns fixed button IDs stored in Redis
-menu_id, markup = await manager.create_standalone_menu(menu_proto)
+# create instance yourself, then register it in storage
+instance = await menu_proto.get_instance(None, context)
+await manager.save_standalone_menu(instance)
+
+markup = instance.get_markup()
 await bot.send_message(chat_id, "Choose:", reply_markup=markup)
 
-# update keyboard — create a fresh instance with new button IDs
-await manager.delete_standalone_menu(menu_id)
-menu_id, new_markup = await manager.create_standalone_menu(menu_proto, context={...})
-await bot.edit_message_reply_markup(chat_id, message_id, reply_markup=new_markup)
+# update keyboard — create a fresh instance and register it
+await manager.delete_standalone_menu(instance)  # or delete_standalone_menu(instance.id)
+new_instance = await menu_proto.get_instance(None, new_context)
+await manager.save_standalone_menu(new_instance)
+await bot.edit_message_reply_markup(chat_id, message_id, reply_markup=new_instance.get_markup())
 ```
 
 When a standalone button is pressed, the middleware injects `button` and `menu` but `dialog` is `None`.
@@ -308,7 +312,8 @@ TTL is refreshed on every `save()` call for dialogs (and for the `active:*` poin
 op = await manager.create_dialog(proto, user_id, chat_id, bot, ttl=3600)
 
 # this standalone menu never expires
-menu_id, markup = await manager.create_standalone_menu(proto, ttl=None)
+instance = await proto.get_instance(None, context)
+await manager.save_standalone_menu(instance, ttl=None)
 ```
 
 **Cleanup**

@@ -27,16 +27,16 @@ class MenuPrototype(ABC):
         return self.__class__._prototype_name
 
     @abstractmethod
-    async def get_buttons(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> list[list[ButtonInstance]]:
+    async def get_buttons(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> list[list[ButtonInstance]]:
         pass
 
-    async def get_data(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> dict:
+    async def get_data(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> dict:
         return {}
 
-    async def get_additional_reply_parameters(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> Optional[AdditionalReplyMenuParameters]:
+    async def get_additional_reply_parameters(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> Optional[AdditionalReplyMenuParameters]:
         return None
 
-    async def get_instance(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> MenuInstance:
+    async def get_instance(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> MenuInstance:
         buttons = await self.get_buttons(dialog, context)
         data = await self.get_data(dialog, context)
         additional_reply_parameters = await self.get_additional_reply_parameters(dialog, context)
