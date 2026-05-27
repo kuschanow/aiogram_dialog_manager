@@ -69,7 +69,7 @@ dp = Dispatcher()
 
 storage = MemoryStorage()
 manager = DialogManager(storage)
-manager.setup(dp)          # registers middleware on message and callback_query
+manager.setup(dp)          # registers middleware on all supported event types
 ```
 
 ### 3 — Start a dialog in a handler
@@ -183,7 +183,7 @@ The object injected into handlers as `dialog`. Provides:
 | `set_active_dialog(operator)` | Mark a dialog as active for its user+chat |
 | `set_user_message_filter(dialog, filter_fn)` | Register a per-dialog-type message filter |
 | `set_dead_button_handler(handler)` | Register a callback for button presses that resolve to nothing |
-| `setup(dp)` | Register middleware on the dispatcher |
+| `setup(dp)` | Register middleware on all supported event types |
 
 ### Active dialog
 
@@ -359,6 +359,14 @@ DialogAccessFilter()                          # ownership check
 | `dialog` | `DialogOperator \| None` | Active dialog for this user+chat, or `None` |
 | `dialog_manager` | `DialogManager` | The manager instance |
 
+#### On `EditedMessage`
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `dialog` | `DialogOperator \| None` | Active dialog for this user+chat, or `None` |
+| `message_record` | `UserMessageRecord \| None` | The saved record matching the edited message, or `None` if not tracked |
+| `dialog_manager` | `DialogManager` | The manager instance |
+
 #### On `CallbackQuery` (button press)
 
 | Key | Type | Description |
@@ -367,6 +375,31 @@ DialogAccessFilter()                          # ownership check
 | `button` | `ButtonInstance \| None` | The pressed button |
 | `message_record` | `BotMessageRecord \| None` | The bot message that contained the button (dialog buttons only) |
 | `menu` | `AnyMenuInstance \| None` | The menu that contained the button |
+| `dialog_manager` | `DialogManager` | The manager instance |
+
+#### On `MyChatMember` / `ChatMember`
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `dialog` | `DialogOperator \| None` | Active dialog for the user who triggered the update, or `None` |
+| `dialog_manager` | `DialogManager` | The manager instance |
+
+#### On `PollAnswer`
+
+Resolved via the poll index built automatically when a dialog sends a poll via `send_poll`. If the poll was not sent through the dialog framework, `dialog` and `message_record` are `None`.
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `dialog` | `DialogOperator \| None` | Dialog that sent the poll, or `None` |
+| `message_record` | `BotMessageRecord \| None` | The bot message record for the poll, or `None` |
+| `dialog_manager` | `DialogManager` | The manager instance |
+
+#### On `MessageReaction`
+
+| Key | Type | Description |
+|-----|------|-------------|
+| `dialog` | `DialogOperator \| None` | Active dialog for the reacting user, or `None` (also `None` for anonymous reactions) |
+| `message_record` | `AnyMessageRecord \| None` | The dialog message record that was reacted to, or `None` if not tracked |
 | `dialog_manager` | `DialogManager` | The manager instance |
 
 ### Message Types

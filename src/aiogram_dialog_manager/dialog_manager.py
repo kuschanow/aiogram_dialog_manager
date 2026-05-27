@@ -2,12 +2,18 @@ import logging
 from typing import Optional, Any, Callable, Awaitable, Dict
 
 from aiogram import Bot, Dispatcher
-from aiogram.types import Message, CallbackQuery, ReplyMarkupUnion
+from aiogram.types import (
+    Message,
+    CallbackQuery,
+    ChatMemberUpdated,
+    PollAnswer,
+    MessageReactionUpdated,
+)
 from pydantic import TypeAdapter
 
 from aiogram_dialog_manager.instance.dialog import DialogInstance
 from aiogram_dialog_manager.instance.menu import MenuInstance, AnyMenuInstance
-from aiogram_dialog_manager.instance.message import BotMessageRecord
+from aiogram_dialog_manager.instance.message import BotMessageRecord, UserMessageRecord, AnyMessageRecord
 from aiogram_dialog_manager.instance.button import ButtonInstance
 from aiogram_dialog_manager.dialog_operator import DialogOperator
 from aiogram_dialog_manager.prototype.dialog import DialogPrototype
@@ -21,6 +27,29 @@ DeadButtonHandler = Callable[[CallbackQuery], Awaitable[None]]
 _UNSET = object()
 
 _AnyMenuInstanceAdapter = TypeAdapter(AnyMenuInstance)
+
+
+def _find_user_message_record(instance: DialogInstance, message_id: int) -> Optional[UserMessageRecord]:
+    for node in instance.nodes.values():
+        msg = node.message
+        if isinstance(msg, UserMessageRecord) and msg.telegram_message_instance.message_id == message_id:
+            return msg
+    return None
+
+
+def _find_message_record_by_message_id(instance: DialogInstance, message_id: int) -> Optional[AnyMessageRecord]:
+    for node in instance.nodes.values():
+        if node.message.telegram_message_instance.message_id == message_id:
+            return node.message
+    return None
+
+
+def _find_bot_message_record_by_poll_id(instance: DialogInstance, poll_id: str) -> Optional[BotMessageRecord]:
+    for node in instance.nodes.values():
+        msg = node.message
+        if isinstance(msg, BotMessageRecord) and msg.telegram_message_instance.poll is not None and msg.telegram_message_instance.poll.id == poll_id:
+            return msg
+    return None
 
 
 def _find_button(instance: DialogInstance, button_id: str) -> Optional[tuple[BotMessageRecord, ButtonInstance]]:
@@ -94,10 +123,13 @@ class DialogManager:
             await self._storage.set(active_key, instance.id, ttl=effective_ttl)
         for node in instance.nodes.values():
             msg = node.message
-            if isinstance(msg, BotMessageRecord) and isinstance(msg.menu, MenuInstance):
-                for row in msg.menu.buttons:
-                    for btn in row:
-                        await self._storage.set_value_with_index(f"button:{btn.id}", instance.id, ttl=effective_ttl)
+            if isinstance(msg, BotMessageRecord):
+                if isinstance(msg.menu, MenuInstance):
+                    for row in msg.menu.buttons:
+                        for btn in row:
+                            await self._storage.set_value_with_index(f"button:{btn.id}", instance.id, ttl=effective_ttl)
+                if msg.telegram_message_instance.poll is not None:
+                    await self._storage.set_value_with_index(f"poll:{msg.telegram_message_instance.poll.id}", instance.id, ttl=effective_ttl)
 
     async def delete(self, operator: DialogOperator) -> None:
         instance = operator.dialog
@@ -155,7 +187,12 @@ class DialogManager:
 
     def setup(self, dp: Dispatcher) -> None:
         dp.message.outer_middleware.register(self._message_middleware)
+        dp.edited_message.outer_middleware.register(self._edited_message_middleware)
         dp.callback_query.outer_middleware.register(self._callback_middleware)
+        dp.my_chat_member.outer_middleware.register(self._chat_member_updated_middleware)
+        dp.chat_member.outer_middleware.register(self._chat_member_updated_middleware)
+        dp.poll_answer.outer_middleware.register(self._poll_answer_middleware)
+        dp.message_reaction.outer_middleware.register(self._message_reaction_middleware)
 
     async def _message_middleware(
         self,
@@ -230,6 +267,103 @@ class DialogManager:
         data["dialog_manager"] = self
 
         result = await handler(callback, data)
+
+        if operator is not None and await self._storage.exists(f"dialog:{operator.dialog.id}"):
+            await self.save(operator)
+
+        return result
+
+    async def _edited_message_middleware(
+        self,
+        handler: Callable[[Message, Dict[str, Any]], Awaitable[Any]],
+        message: Message,
+        data: Dict[str, Any],
+    ) -> Any:
+        bot: Bot = data["bot"]
+        operator = None
+        message_record = None
+        if message.from_user:
+            operator = await self.get_active_dialog(message.from_user.id, message.chat.id, bot)
+            if operator is not None:
+                message_record = _find_user_message_record(operator.dialog, message.message_id)
+
+        data["dialog"] = operator
+        data["message_record"] = message_record
+        data["dialog_manager"] = self
+
+        result = await handler(message, data)
+
+        if operator is not None and await self._storage.exists(f"dialog:{operator.dialog.id}"):
+            await self.save(operator)
+
+        return result
+
+    async def _chat_member_updated_middleware(
+        self,
+        handler: Callable[[ChatMemberUpdated, Dict[str, Any]], Awaitable[Any]],
+        update: ChatMemberUpdated,
+        data: Dict[str, Any],
+    ) -> Any:
+        bot: Bot = data["bot"]
+        operator = await self.get_active_dialog(update.from_user.id, update.chat.id, bot)
+
+        data["dialog"] = operator
+        data["dialog_manager"] = self
+
+        result = await handler(update, data)
+
+        if operator is not None and await self._storage.exists(f"dialog:{operator.dialog.id}"):
+            await self.save(operator)
+
+        return result
+
+    async def _poll_answer_middleware(
+        self,
+        handler: Callable[[PollAnswer, Dict[str, Any]], Awaitable[Any]],
+        poll_answer: PollAnswer,
+        data: Dict[str, Any],
+    ) -> Any:
+        bot: Bot = data["bot"]
+        operator = None
+        message_record = None
+
+        dialog_id = await self._storage.get_string(f"poll:{poll_answer.poll_id}")
+        if dialog_id:
+            operator = await self.get_dialog(dialog_id, bot)
+            if operator is not None:
+                message_record = _find_bot_message_record_by_poll_id(operator.dialog, poll_answer.poll_id)
+
+        data["dialog"] = operator
+        data["message_record"] = message_record
+        data["dialog_manager"] = self
+
+        result = await handler(poll_answer, data)
+
+        if operator is not None and await self._storage.exists(f"dialog:{operator.dialog.id}"):
+            await self.save(operator)
+
+        return result
+
+    async def _message_reaction_middleware(
+        self,
+        handler: Callable[[MessageReactionUpdated, Dict[str, Any]], Awaitable[Any]],
+        reaction: MessageReactionUpdated,
+        data: Dict[str, Any],
+    ) -> Any:
+        bot: Bot = data["bot"]
+        operator = None
+        message_record = None
+
+        if reaction.user:
+            operator = await self.get_active_dialog(reaction.user.id, reaction.chat.id, bot)
+            if operator is not None:
+                message_record = _find_message_record_by_message_id(operator.dialog, reaction.message_id)
+
+        data["dialog"] = operator
+        data["message_record"] = message_record
+        data["dialog_manager"] = self
+
+        result = await handler(reaction, data)
 
         if operator is not None and await self._storage.exists(f"dialog:{operator.dialog.id}"):
             await self.save(operator)

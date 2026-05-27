@@ -414,3 +414,4 @@ class DialogOperator:
                     await self._bot.delete_message(chat_id=tg.chat.id, message_id=tg.message_id)
                 except TelegramBadRequest:
                     logger.debug("Message %s in chat %s already deleted or not found", tg.message_id, tg.chat.id)
+                   
