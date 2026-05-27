@@ -50,7 +50,7 @@ class BaseMessagePrototype(ABC):
         return None
 
     async def get_data(self, dialog, context: Optional[dict[str, Any]]) -> dict:
-        return {}
+        return context or {}
 
     async def get_send_params(self, dialog, context: Optional[dict[str, Any]]) -> SendParams:
         return SendParams()

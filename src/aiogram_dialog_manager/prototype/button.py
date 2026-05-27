@@ -30,7 +30,7 @@ class ButtonPrototype(ABC):
         pass
 
     async def get_data(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> dict:
-        return {}
+        return context or {}
 
     async def get_inline_additional_parameters(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> Optional[InlineButtonAdditionalParameters]:
         return None

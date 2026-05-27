@@ -31,7 +31,7 @@ class MenuPrototype(ABC):
         pass
 
     async def get_data(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> dict:
-        return {}
+        return context or {}
 
     async def get_additional_reply_parameters(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> Optional[AdditionalReplyMenuParameters]:
         return None
