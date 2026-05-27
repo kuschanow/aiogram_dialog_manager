@@ -20,19 +20,34 @@ def make_poll_answer(poll_id: str = "poll123") -> MagicMock:
     return answer
 
 
+def _make_poll_option(persistent_id: int, text: str) -> PollOption:
+    pid_type = PollOption.model_fields["persistent_id"].annotation if "persistent_id" in PollOption.model_fields else None
+    kwargs: dict = {"text": text, "voter_count": 0}
+    if pid_type is not None:
+        kwargs["persistent_id"] = str(persistent_id) if pid_type is str else persistent_id
+    return PollOption(**kwargs)
+
+
+def _poll_extra_fields() -> dict:
+    extra = {}
+    if "allows_revoting" in Poll.model_fields:
+        extra["allows_revoting"] = False
+    if "members_only" in Poll.model_fields:
+        extra["members_only"] = False
+    return extra
+
+
 def make_poll_message(poll_id: str = "poll123", message_id: int = 5, chat_id: int = 100) -> Message:
     poll = Poll(
         id=poll_id,
         question="Best color?",
-        options=[
-            PollOption(text="Red", voter_count=0),
-            PollOption(text="Blue", voter_count=0),
-        ],
+        options=[_make_poll_option(0, "Red"), _make_poll_option(1, "Blue")],
         total_voter_count=0,
         is_closed=False,
         is_anonymous=True,
         type="regular",
         allows_multiple_answers=False,
+        **_poll_extra_fields(),
     )
     return Message(
         message_id=message_id,
