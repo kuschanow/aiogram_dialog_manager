@@ -334,10 +334,11 @@ All filters work with objects resolved by the middleware.
 
 ```python
 from aiogram_dialog_manager import (
-    DialogFilter,       # match by dialog prototype or name and/or data
-    ButtonFilter,       # match by button prototype or name and/or data
-    MenuFilter,         # match by menu prototype or name and/or data
-    DialogAccessFilter, # pass only if event.from_user.id == dialog.user_id
+    DialogFilter,        # match by dialog prototype or name and/or data
+    ButtonFilter,        # match by button prototype or name and/or data
+    MenuFilter,          # match by menu prototype or name and/or data
+    EditedMessageFilter, # pass only if the edited message was tracked in the dialog
+    DialogAccessFilter,  # pass only if event.from_user.id == dialog.user_id
 )
 
 # Examples
@@ -347,6 +348,8 @@ ButtonFilter(my_button_proto)                 # by prototype instance
 ButtonFilter("greet_button", color="red")     # by name + data field
 MenuFilter(my_menu_proto)                     # by prototype instance
 MenuFilter("main_menu")                       # by name
+EditedMessageFilter()                         # any tracked user message was edited
+EditedMessageFilter(step="input")             # edited message has matching data
 DialogAccessFilter()                          # ownership check
 ```
 
