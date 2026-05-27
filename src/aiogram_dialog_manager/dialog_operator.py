@@ -55,8 +55,8 @@ class DialogOperator:
     def data(self) -> dict:
         return self._dialog.data
 
-    def append_user_message(self, message: Message) -> UserMessageRecord:
-        record = UserMessageRecord(telegram_message_instance=message)
+    def append_user_message(self, message: Message, data: Optional[dict[str, Any]] = None) -> UserMessageRecord:
+        record = UserMessageRecord(telegram_message_instance=message, data=data or {})
         self._dialog.append_message(record)
         return record
 

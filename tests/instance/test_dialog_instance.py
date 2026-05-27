@@ -7,7 +7,7 @@ from tests.helpers import StubDialog
 
 def _make_instance():
     proto = StubDialog()
-    return asyncio.get_event_loop().run_until_complete(proto.get_instance(42, 100))
+    return asyncio.run(proto.get_instance(42, 100))
 
 
 class TestDialogInstance:

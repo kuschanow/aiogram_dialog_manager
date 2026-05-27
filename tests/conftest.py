@@ -34,11 +34,9 @@ def make_tg_message(
 
 
 def make_dialog_instance(user_id: int = 42, chat_id: int = 100, type_name: str = "test") -> DialogInstance:
-    prototype = StubDialog(name=type_name)
     import asyncio
-    return asyncio.get_event_loop().run_until_complete(
-        prototype.get_instance(user_id, chat_id)
-    )
+    prototype = StubDialog(name=type_name)
+    return asyncio.run(prototype.get_instance(user_id, chat_id))
 
 
 @pytest.fixture
