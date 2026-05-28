@@ -28,3 +28,11 @@ class TestDeleteMessage:
         bot_record = make_bot_record(tg_message)
         await operator.delete_message(bot_record, delete_node=True)
         assert operator.dialog.nodes == {}
+
+    async def test_delete_message_preserve_data(self, operator, mock_bot):
+        record = await operator.send_message(StubText(), make_target())
+        node_id = operator.dialog.current_id
+        operator.dialog.data["key"] = "current"
+        await operator.delete_message(record, delete_node=True, preserve_data=True)
+        assert node_id not in operator.dialog.nodes
+        assert operator.dialog.data["key"] == "current"

@@ -103,6 +103,15 @@ class TestDialogInstance:
         inst.rollback(0)
         assert inst.data.get("key") is None
 
+    def test_rollback_preserve_data(self):
+        inst = _make_instance()
+        inst.data["key"] = "before"
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message()))
+        inst.data["key"] = "current"
+        inst.rollback(0, preserve_data=True)
+        assert inst.current_id is None
+        assert inst.data["key"] == "current"
+
     def test_switch_node_uses_data_after_when_finalized(self):
         inst = _make_instance()
         msg = make_tg_message()
@@ -186,6 +195,15 @@ class TestDeleteNodeInstance:
         assert inst.current_id == n2
         assert n1 not in inst.nodes[n0].children_ids
 
+    def test_delete_node_preserve_data(self):
+        inst = _make_instance()
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message()))
+        node_id = inst.current_id
+        inst.data["key"] = "current"
+        inst.delete_node(node_id, preserve_data=True)
+        assert node_id not in inst.nodes
+        assert inst.data["key"] == "current"
+
 
 class TestDeleteCurrentBranch:
     def test_empty_path_noop(self):
@@ -225,6 +243,14 @@ class TestDeleteCurrentBranch:
         inst.delete_current_branch()
         assert "key" not in inst.data
 
+    def test_delete_current_branch_preserve_data(self):
+        inst = _make_instance()
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message()))
+        inst.data["key"] = "current"
+        inst.delete_current_branch(preserve_data=True)
+        assert inst.current_id is None
+        assert inst.data["key"] == "current"
+
 
 class TestClearAllNodes:
     def test_clears_everything(self):
@@ -243,3 +269,11 @@ class TestClearAllNodes:
         inst.clear_all_nodes()
         assert initial_snap_id in inst.snapshots
         assert len(inst.snapshots) == 1
+
+    def test_clear_all_nodes_preserve_data(self):
+        inst = _make_instance()
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message()))
+        inst.data["key"] = "current"
+        inst.clear_all_nodes(preserve_data=True)
+        assert inst.nodes == {}
+        assert inst.data["key"] == "current"

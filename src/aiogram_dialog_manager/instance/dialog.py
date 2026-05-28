@@ -129,7 +129,8 @@ class DialogInstance(BaseModel):
             if snap_id not in in_use:
                 del self.snapshots[snap_id]
 
-    def delete_node(self, node_id: str) -> None:
+    def delete_node(self, node_id: str, preserve_data: bool = False) -> None:
+        current_data = self.data.copy() if preserve_data else None
         ids_to_delete = set(self.collect_subtree_ids(node_id))
         if self.current_id in ids_to_delete:
             parent_id = self.nodes[node_id].parent_id
@@ -147,8 +148,11 @@ class DialogInstance(BaseModel):
         for nid in ids_to_delete:
             del self.nodes[nid]
         self._cleanup_snapshots()
+        if preserve_data:
+            self.data = current_data
 
-    def delete_current_branch(self) -> None:
+    def delete_current_branch(self, preserve_data: bool = False) -> None:
+        current_data = self.data.copy() if preserve_data else None
         path = self._path_to_current()
         if not path:
             return
@@ -170,8 +174,11 @@ class DialogInstance(BaseModel):
         self.current_id = None
         self.data = self.snapshots[self.initial_snapshot_id].copy()
         self._cleanup_snapshots()
+        if preserve_data:
+            self.data = current_data
 
-    def clear_all_nodes(self) -> None:
+    def clear_all_nodes(self, preserve_data: bool = False) -> None:
+        current_data = self.data.copy() if preserve_data else None
         self.nodes.clear()
         self.root_children_ids.clear()
         self.current_id = None
@@ -179,12 +186,17 @@ class DialogInstance(BaseModel):
         initial_snap = self.snapshots[self.initial_snapshot_id]
         self.snapshots.clear()
         self.snapshots[self.initial_snapshot_id] = initial_snap
+        if preserve_data:
+            self.data = current_data
 
-    def rollback(self, index: int) -> None:
+    def rollback(self, index: int, preserve_data: bool = False) -> None:
+        current_data = self.data.copy() if preserve_data else None
         path = self._path_to_current()
         self._finalize_current()
         self.current_id = self.nodes[path[index]].parent_id
         self.data = self.snapshots[self.nodes[path[index]].data_before_id].copy()
+        if preserve_data:
+            self.data = current_data
 
     def switch_node(self, node_id: Optional[str]) -> None:
         self._finalize_current()

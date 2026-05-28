@@ -38,6 +38,14 @@ class TestDeleteNode:
             chat_id=tg_message.chat.id, message_id=tg_message.message_id
         )
 
+    async def test_delete_node_preserve_data(self, operator, tg_message):
+        operator.append_user_message(tg_message)
+        node_id = operator.dialog.current_id
+        operator.dialog.data["key"] = "current"
+        await operator.delete_node(node_id, preserve_data=True)
+        assert node_id not in operator.dialog.nodes
+        assert operator.dialog.data["key"] == "current"
+
     async def test_delete_node_deletes_children(self, operator, mock_bot):
         await operator.send_message(StubText(), make_target())
         n0 = operator.dialog.current_id

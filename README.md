@@ -159,12 +159,12 @@ The object injected into handlers as `dialog`. Provides:
 | `edit_reply_markup(record, menu_proto)` | Replace inline keyboard with a new one |
 | `delete_reply_markup(record)` | Remove the inline keyboard from a message |
 | `edit_live_location(record, proto)` | Update live location |
-| `delete_message(record, delete_node, delete_messages)` | Delete a Telegram message; optionally also remove its dialog node and descendant messages |
-| `delete_all_messages(only_current_branch, delete_nodes)` | Bulk-delete Telegram messages; optionally also remove dialog nodes |
-| `delete_node(node_id, delete_messages)` | Remove a dialog node and all its descendants; optionally delete their Telegram messages |
+| `delete_message(record, delete_node, delete_messages, preserve_data)` | Delete a Telegram message; optionally also remove its dialog node and descendant messages |
+| `delete_all_messages(only_current_branch, delete_nodes, preserve_data)` | Bulk-delete Telegram messages; optionally also remove dialog nodes |
+| `delete_node(node_id, delete_messages, preserve_data)` | Remove a dialog node and all its descendants; optionally delete their Telegram messages |
 | `append_user_message(message)` | Manually track an incoming user message |
 | `append_bot_message(record)` | Manually add a bot message record to the dialog tree |
-| `rollback(index, delete_nodes, delete_messages)` | Roll dialog state back to position `index`; optionally delete rolled-back nodes and their Telegram messages |
+| `rollback(index, delete_nodes, delete_messages, preserve_data)` | Roll dialog state back to position `index`; optionally delete rolled-back nodes and their Telegram messages |
 | `switch_node(node_id)` | Jump to any node in the dialog tree |
 | `data` | Current dialog data dict (read/write) |
 | `temp` | Per-request scratch dict (not persisted) |
@@ -332,6 +332,24 @@ await op.rollback(1, delete_nodes=True)
 # Rollback, discard nodes, and delete their Telegram messages
 await op.rollback(1, delete_nodes=True, delete_messages=True)
 ```
+
+**Preserving dialog data during deletion**
+
+By default, all deletion and rollback operations restore `dialog.data` to the snapshot that was active before the deleted/rolled-back nodes were created. Pass `preserve_data=True` to keep the current value of `dialog.data` unchanged:
+
+```python
+# Rollback cursor position but keep current data
+await op.rollback(1, preserve_data=True)
+
+# Remove a node without restoring an older data snapshot
+await op.delete_node(node_id, preserve_data=True)
+
+# Bulk delete with node cleanup, keeping current data
+await op.delete_all_messages(delete_nodes=True, preserve_data=True)
+await op.delete_message(record, delete_node=True, preserve_data=True)
+```
+
+This is useful when you have already updated `dialog.data` with information that should survive the structural cleanup (e.g. clearing old message nodes after a multi-step form while keeping the collected form values).
 
 ### Storage
 

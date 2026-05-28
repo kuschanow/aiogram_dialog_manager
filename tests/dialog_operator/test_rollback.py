@@ -51,6 +51,21 @@ class TestRollbackAndSwitchNode:
         )
         await operator.rollback(0, delete_nodes=True, delete_messages=True)
 
+    async def test_rollback_preserve_data(self, operator, tg_message):
+        operator.append_user_message(tg_message)
+        operator.dialog.data["key"] = "current"
+        await operator.rollback(0, preserve_data=True)
+        assert operator.dialog.current_id is None
+        assert operator.dialog.data["key"] == "current"
+
+    async def test_rollback_with_delete_nodes_preserve_data(self, operator, tg_message):
+        operator.append_user_message(tg_message)
+        node_id = operator.dialog.current_id
+        operator.dialog.data["key"] = "current"
+        await operator.rollback(0, delete_nodes=True, preserve_data=True)
+        assert node_id not in operator.dialog.nodes
+        assert operator.dialog.data["key"] == "current"
+
     def test_switch_node_to_none(self, operator, tg_message):
         operator.append_user_message(tg_message)
         operator.switch_node(None)

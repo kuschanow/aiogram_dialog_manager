@@ -48,6 +48,20 @@ class TestDeleteAllMessages:
         await operator.delete_all_messages(only_current_branch=True, delete_nodes=True)
         assert operator.dialog.current_id is None
 
+    async def test_delete_all_messages_preserve_data_full_tree(self, operator, mock_bot):
+        await operator.send_message(StubText(), make_target())
+        operator.dialog.data["key"] = "current"
+        await operator.delete_all_messages(delete_nodes=True, preserve_data=True)
+        assert operator.dialog.nodes == {}
+        assert operator.dialog.data["key"] == "current"
+
+    async def test_delete_all_messages_preserve_data_current_branch(self, operator, mock_bot):
+        await operator.send_message(StubText(), make_target())
+        operator.dialog.data["key"] = "current"
+        await operator.delete_all_messages(only_current_branch=True, delete_nodes=True, preserve_data=True)
+        assert operator.dialog.current_id is None
+        assert operator.dialog.data["key"] == "current"
+
     async def test_get_message_instance(self, operator):
         proto = StubText()
         instance = await operator.get_message_instance(proto, None)
