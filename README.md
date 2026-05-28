@@ -156,7 +156,8 @@ The object injected into handlers as `dialog`. Provides:
 | `reply_to_message(proto, reply_to)` | Send a reply |
 | `edit_message(record, proto)` | Edit text or caption |
 | `edit_message_media(record, proto)` | Edit media file |
-| `edit_reply_markup(record, menu_proto)` | Edit inline keyboard only |
+| `edit_reply_markup(record, menu_proto)` | Replace inline keyboard with a new one |
+| `delete_reply_markup(record)` | Remove the inline keyboard from a message |
 | `edit_live_location(record, proto)` | Update live location |
 | `delete_message(record, delete_node, delete_messages)` | Delete a Telegram message; optionally also remove its dialog node and descendant messages |
 | `delete_all_messages(only_current_branch, delete_nodes)` | Bulk-delete Telegram messages; optionally also remove dialog nodes |

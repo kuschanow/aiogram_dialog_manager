@@ -298,6 +298,23 @@ class DialogOperator:
         )
         if isinstance(result, Message):
             message_record.telegram_message_instance = result
+        message_record.menu = menu_instance
+        return message_record
+
+    async def delete_reply_markup(
+            self,
+            message_record: BotMessageRecord,
+    ) -> BotMessageRecord:
+        tg = message_record.telegram_message_instance
+        result = await self._bot.edit_message_reply_markup(
+            chat_id=tg.chat.id,
+            message_id=tg.message_id,
+            business_connection_id=tg.business_connection_id,
+            reply_markup=None,
+        )
+        if isinstance(result, Message):
+            message_record.telegram_message_instance = result
+        message_record.menu = None
         return message_record
 
     async def send_photo(
