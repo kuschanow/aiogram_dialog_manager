@@ -17,7 +17,8 @@ class RedisStorage(BaseStorage):
         return await self.redis.get(key)
 
     async def set(self, key: str, data: Any, ttl: Optional[int] = None):
-        await self.redis.set(key, json.dumps(data), ex=ttl)
+        value = data if isinstance(data, str) else json.dumps(data)
+        await self.redis.set(key, value, ex=ttl)
 
     async def set_value_with_index(self, key: str, data: str, ttl: Optional[int] = None):
         await self.redis.set(key, data, ex=ttl)

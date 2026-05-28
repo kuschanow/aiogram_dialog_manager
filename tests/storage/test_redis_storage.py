@@ -30,17 +30,31 @@ class TestRedisStorage:
         result = await storage.get_string("key")
         assert result == "some_string"
 
-    async def test_set(self):
+    async def test_set_dict(self):
         redis = self._make_redis()
         storage = RedisStorage(redis)
         await storage.set("key", {"a": 2})
         redis.set.assert_awaited_once_with("key", json.dumps({"a": 2}), ex=None)
 
-    async def test_set_with_ttl(self):
+    async def test_set_dict_with_ttl(self):
         redis = self._make_redis()
         storage = RedisStorage(redis)
         await storage.set("key", {"a": 2}, ttl=60)
         redis.set.assert_awaited_once_with("key", json.dumps({"a": 2}), ex=60)
+
+    async def test_set_string(self):
+        redis = self._make_redis()
+        storage = RedisStorage(redis)
+        await storage.set("active:1:2", "some-uuid")
+        redis.set.assert_awaited_once_with("active:1:2", "some-uuid", ex=None)
+
+    async def test_set_string_roundtrip(self):
+        redis = self._make_redis()
+        redis.get.return_value = "some-uuid"
+        storage = RedisStorage(redis)
+        await storage.set("active:1:2", "some-uuid")
+        result = await storage.get_string("active:1:2")
+        assert result == "some-uuid"
 
     async def test_set_value_with_index(self):
         redis = self._make_redis()
