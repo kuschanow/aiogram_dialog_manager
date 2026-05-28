@@ -63,12 +63,11 @@ class DialogOperator:
     async def _delete_messages_in_subtree(self, node_id: str) -> None:
         for nid in self._dialog.collect_subtree_ids(node_id):
             msg = self._dialog.nodes[nid].message
-            if isinstance(msg, BotMessageRecord):
-                tg = msg.telegram_message_instance
-                try:
-                    await self._bot.delete_message(chat_id=tg.chat.id, message_id=tg.message_id)
-                except TelegramBadRequest:
-                    logger.debug("Message %s in chat %s already deleted or not found", tg.message_id, tg.chat.id)
+            tg = msg.telegram_message_instance
+            try:
+                await self._bot.delete_message(chat_id=tg.chat.id, message_id=tg.message_id)
+            except TelegramBadRequest:
+                logger.debug("Message %s in chat %s already deleted or not found", tg.message_id, tg.chat.id)
 
     async def rollback(self, index: int, delete_nodes: bool = False, delete_messages: bool = False) -> None:
         if delete_nodes:
@@ -420,7 +419,7 @@ class DialogOperator:
     ) -> BotMessageRecord:
         return await self._send(message_prototype, target, context, send_params, None)
 
-    async def delete_message(self, message_record: BotMessageRecord, delete_node: bool = False, delete_messages: bool = False) -> None:
+    async def delete_message(self, message_record: AnyMessageRecord, delete_node: bool = False, delete_messages: bool = False) -> None:
         tg = message_record.telegram_message_instance
         await self._bot.delete_message(chat_id=tg.chat.id, message_id=tg.message_id)
         if delete_node:
@@ -436,12 +435,11 @@ class DialogOperator:
             else [node.message for node in self._dialog.nodes.values()]
         )
         for message in messages:
-            if isinstance(message, BotMessageRecord):
-                tg = message.telegram_message_instance
-                try:
-                    await self._bot.delete_message(chat_id=tg.chat.id, message_id=tg.message_id)
-                except TelegramBadRequest:
-                    logger.debug("Message %s in chat %s already deleted or not found", tg.message_id, tg.chat.id)
+            tg = message.telegram_message_instance
+            try:
+                await self._bot.delete_message(chat_id=tg.chat.id, message_id=tg.message_id)
+            except TelegramBadRequest:
+                logger.debug("Message %s in chat %s already deleted or not found", tg.message_id, tg.chat.id)
         if delete_nodes:
             if only_current_branch:
                 self._dialog.delete_current_branch()

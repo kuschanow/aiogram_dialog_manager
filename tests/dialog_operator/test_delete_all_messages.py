@@ -21,10 +21,12 @@ class TestDeleteAllMessages:
         await operator.delete_all_messages(only_current_branch=True)
         mock_bot.delete_message.assert_awaited()
 
-    async def test_delete_all_messages_ignores_user_messages(self, operator, mock_bot, tg_message):
+    async def test_delete_all_messages_includes_user_messages(self, operator, mock_bot, tg_message):
         operator.append_user_message(tg_message)
         await operator.delete_all_messages()
-        mock_bot.delete_message.assert_not_awaited()
+        mock_bot.delete_message.assert_awaited_once_with(
+            chat_id=tg_message.chat.id, message_id=tg_message.message_id
+        )
 
     async def test_delete_all_messages_swallows_bad_request(self, operator, mock_bot):
         proto = StubText()

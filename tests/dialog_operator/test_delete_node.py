@@ -30,11 +30,13 @@ class TestDeleteNode:
         )
         assert node_id not in operator.dialog.nodes
 
-    async def test_delete_node_skips_user_message(self, operator, mock_bot, tg_message):
+    async def test_delete_node_includes_user_message(self, operator, mock_bot, tg_message):
         operator.append_user_message(tg_message)
         node_id = operator.dialog.current_id
         await operator.delete_node(node_id, delete_messages=True)
-        mock_bot.delete_message.assert_not_awaited()
+        mock_bot.delete_message.assert_awaited_once_with(
+            chat_id=tg_message.chat.id, message_id=tg_message.message_id
+        )
 
     async def test_delete_node_deletes_children(self, operator, mock_bot):
         await operator.send_message(StubText(), make_target())
