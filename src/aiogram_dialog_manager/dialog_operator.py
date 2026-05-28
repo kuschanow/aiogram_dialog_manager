@@ -60,8 +60,31 @@ class DialogOperator:
         self._dialog.append_message(record)
         return record
 
-    def rollback(self, index: int) -> None:
-        self._dialog.rollback(index)
+    async def _delete_messages_in_subtree(self, node_id: str) -> None:
+        for nid in self._dialog.collect_subtree_ids(node_id):
+            msg = self._dialog.nodes[nid].message
+            if isinstance(msg, BotMessageRecord):
+                tg = msg.telegram_message_instance
+                try:
+                    await self._bot.delete_message(chat_id=tg.chat.id, message_id=tg.message_id)
+                except TelegramBadRequest:
+                    logger.debug("Message %s in chat %s already deleted or not found", tg.message_id, tg.chat.id)
+
+    async def rollback(self, index: int, delete_nodes: bool = False, delete_messages: bool = False) -> None:
+        if delete_nodes:
+            path = self._dialog._path_to_current()
+            node_id_to_delete = path[index]
+            if delete_messages:
+                await self._delete_messages_in_subtree(node_id_to_delete)
+            self._dialog.rollback(index)
+            self._dialog.delete_node(node_id_to_delete)
+        else:
+            self._dialog.rollback(index)
+
+    async def delete_node(self, node_id: str, delete_messages: bool = False) -> None:
+        if delete_messages:
+            await self._delete_messages_in_subtree(node_id)
+        self._dialog.delete_node(node_id)
 
     def switch_node(self, node_id: Optional[str]) -> None:
         self._dialog.switch_node(node_id)
@@ -397,15 +420,20 @@ class DialogOperator:
     ) -> BotMessageRecord:
         return await self._send(message_prototype, target, context, send_params, None)
 
-    async def delete_message(self, message_record: BotMessageRecord) -> None:
+    async def delete_message(self, message_record: BotMessageRecord, delete_node: bool = False, delete_messages: bool = False) -> None:
         tg = message_record.telegram_message_instance
         await self._bot.delete_message(chat_id=tg.chat.id, message_id=tg.message_id)
+        if delete_node:
+            for nid, n in self._dialog.nodes.items():
+                if n.message is message_record:
+                    await self.delete_node(nid, delete_messages=delete_messages)
+                    break
 
-    async def delete_all_messages(self, only_current_branch: bool = False) -> None:
+    async def delete_all_messages(self, only_current_branch: bool = False, delete_nodes: bool = False) -> None:
         messages = (
             self._dialog.entries
             if only_current_branch
-            else (node.message for node in self._dialog.nodes.values())
+            else [node.message for node in self._dialog.nodes.values()]
         )
         for message in messages:
             if isinstance(message, BotMessageRecord):
@@ -414,4 +442,9 @@ class DialogOperator:
                     await self._bot.delete_message(chat_id=tg.chat.id, message_id=tg.message_id)
                 except TelegramBadRequest:
                     logger.debug("Message %s in chat %s already deleted or not found", tg.message_id, tg.chat.id)
+        if delete_nodes:
+            if only_current_branch:
+                self._dialog.delete_current_branch()
+            else:
+                self._dialog.clear_all_nodes()
                    

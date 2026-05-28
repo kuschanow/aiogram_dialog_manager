@@ -120,3 +120,126 @@ class TestDialogInstance:
         msg = make_tg_message()
         inst.append_message(UserMessageRecord(telegram_message_instance=msg))
         assert len(inst.root_children_ids) == 1
+
+
+class TestCollectSubtreeIds:
+    def test_single_node(self):
+        inst = _make_instance()
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message()))
+        node_id = inst.current_id
+        assert inst.collect_subtree_ids(node_id) == [node_id]
+
+    def test_with_children(self):
+        inst = _make_instance()
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message(1)))
+        n0 = inst.current_id
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message(2)))
+        n1 = inst.current_id
+        assert set(inst.collect_subtree_ids(n0)) == {n0, n1}
+
+
+class TestDeleteNodeInstance:
+    def test_delete_current_root_node(self):
+        inst = _make_instance()
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message()))
+        node_id = inst.current_id
+        inst.delete_node(node_id)
+        assert inst.current_id is None
+        assert node_id not in inst.nodes
+        assert node_id not in inst.root_children_ids
+
+    def test_delete_ancestor_of_current_and_cleans_orphaned_snapshots(self):
+        inst = _make_instance()
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message(1)))
+        n0 = inst.current_id
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message(2)))
+        n1 = inst.current_id
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message(3)))
+        snap_count_before = len(inst.snapshots)
+        inst.delete_node(n1)
+        assert inst.current_id == n0
+        assert n1 not in inst.nodes
+        assert len(inst.snapshots) < snap_count_before
+
+    def test_delete_non_current_root_node(self):
+        inst = _make_instance()
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message(1)))
+        n0 = inst.current_id
+        inst.switch_node(None)
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message(2)))
+        n1 = inst.current_id
+        inst.delete_node(n0)
+        assert n0 not in inst.nodes
+        assert inst.current_id == n1
+
+    def test_delete_non_current_non_root_node(self):
+        inst = _make_instance()
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message(1)))
+        n0 = inst.current_id
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message(2)))
+        n1 = inst.current_id
+        inst.switch_node(n0)
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message(3)))
+        n2 = inst.current_id
+        inst.delete_node(n1)
+        assert n1 not in inst.nodes
+        assert inst.current_id == n2
+        assert n1 not in inst.nodes[n0].children_ids
+
+
+class TestDeleteCurrentBranch:
+    def test_empty_path_noop(self):
+        inst = _make_instance()
+        inst.delete_current_branch()
+        assert inst.current_id is None
+        assert inst.nodes == {}
+
+    def test_single_node(self):
+        inst = _make_instance()
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message()))
+        node_id = inst.current_id
+        inst.delete_current_branch()
+        assert inst.current_id is None
+        assert node_id not in inst.nodes
+
+    def test_sibling_reparented_to_root(self):
+        inst = _make_instance()
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message(1)))
+        n0 = inst.current_id
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message(2)))
+        n1 = inst.current_id
+        inst.switch_node(n0)
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message(3)))
+        n2 = inst.current_id
+        inst.delete_current_branch()
+        assert n0 not in inst.nodes
+        assert n2 not in inst.nodes
+        assert n1 in inst.nodes
+        assert n1 in inst.root_children_ids
+        assert inst.nodes[n1].parent_id is None
+
+    def test_resets_data(self):
+        inst = _make_instance()
+        inst.data["key"] = "val"
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message()))
+        inst.delete_current_branch()
+        assert "key" not in inst.data
+
+
+class TestClearAllNodes:
+    def test_clears_everything(self):
+        inst = _make_instance()
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message(1)))
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message(2)))
+        inst.clear_all_nodes()
+        assert inst.nodes == {}
+        assert inst.root_children_ids == []
+        assert inst.current_id is None
+
+    def test_preserves_initial_snapshot(self):
+        inst = _make_instance()
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message()))
+        initial_snap_id = inst.initial_snapshot_id
+        inst.clear_all_nodes()
+        assert initial_snap_id in inst.snapshots
+        assert len(inst.snapshots) == 1

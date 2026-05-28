@@ -110,6 +110,76 @@ class DialogInstance(BaseModel):
             self.nodes[self.current_id].children_ids.append(node.id)
         self.current_id = node.id
 
+    def collect_subtree_ids(self, node_id: str) -> list[str]:
+        result = []
+        stack = [node_id]
+        while stack:
+            nid = stack.pop()
+            result.append(nid)
+            stack.extend(self.nodes[nid].children_ids)
+        return result
+
+    def _cleanup_snapshots(self) -> None:
+        in_use = {self.initial_snapshot_id}
+        for node in self.nodes.values():
+            in_use.add(node.data_before_id)
+            if node.data_after_id:
+                in_use.add(node.data_after_id)
+        for snap_id in list(self.snapshots.keys()):
+            if snap_id not in in_use:
+                del self.snapshots[snap_id]
+
+    def delete_node(self, node_id: str) -> None:
+        ids_to_delete = set(self.collect_subtree_ids(node_id))
+        if self.current_id in ids_to_delete:
+            parent_id = self.nodes[node_id].parent_id
+            self.current_id = parent_id
+            if parent_id is not None:
+                parent = self.nodes[parent_id]
+                self.data = self.snapshots[parent.data_after_id or parent.data_before_id].copy()
+            else:
+                self.data = self.snapshots[self.initial_snapshot_id].copy()
+        parent_id = self.nodes[node_id].parent_id
+        if parent_id is None:
+            self.root_children_ids.remove(node_id)
+        else:
+            self.nodes[parent_id].children_ids.remove(node_id)
+        for nid in ids_to_delete:
+            del self.nodes[nid]
+        self._cleanup_snapshots()
+
+    def delete_current_branch(self) -> None:
+        path = self._path_to_current()
+        if not path:
+            return
+        # Pre-compute non-path children for each node before modifying any children lists.
+        non_path_children_by_node: dict[str, list[str]] = {}
+        for i, node_id in enumerate(path):
+            path_child_id = path[i + 1] if i + 1 < len(path) else None
+            non_path_children_by_node[node_id] = [
+                c for c in self.nodes[node_id].children_ids if c != path_child_id
+            ]
+        # path[0] is always a root node (parent_id=None), so remove from root_children_ids.
+        self.root_children_ids.remove(path[0])
+        for node_id in path:
+            # Non-path children bubble up to the virtual root.
+            for child_id in non_path_children_by_node[node_id]:
+                self.nodes[child_id].parent_id = None
+                self.root_children_ids.append(child_id)
+            del self.nodes[node_id]
+        self.current_id = None
+        self.data = self.snapshots[self.initial_snapshot_id].copy()
+        self._cleanup_snapshots()
+
+    def clear_all_nodes(self) -> None:
+        self.nodes.clear()
+        self.root_children_ids.clear()
+        self.current_id = None
+        self.data = self.snapshots[self.initial_snapshot_id].copy()
+        initial_snap = self.snapshots[self.initial_snapshot_id]
+        self.snapshots.clear()
+        self.snapshots[self.initial_snapshot_id] = initial_snap
+
     def rollback(self, index: int) -> None:
         path = self._path_to_current()
         self._finalize_current()

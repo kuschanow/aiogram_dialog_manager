@@ -158,11 +158,12 @@ The object injected into handlers as `dialog`. Provides:
 | `edit_message_media(record, proto)` | Edit media file |
 | `edit_reply_markup(record, menu_proto)` | Edit inline keyboard only |
 | `edit_live_location(record, proto)` | Update live location |
-| `delete_message(record)` | Delete a single message |
-| `delete_all_messages(only_current_branch)` | Bulk delete |
+| `delete_message(record, delete_node, delete_messages)` | Delete a Telegram message; optionally also remove its dialog node and descendant messages |
+| `delete_all_messages(only_current_branch, delete_nodes)` | Bulk-delete Telegram messages; optionally also remove dialog nodes |
+| `delete_node(node_id, delete_messages)` | Remove a dialog node and all its descendants; optionally delete their Telegram messages |
 | `append_user_message(message)` | Manually track an incoming user message |
 | `append_bot_message(record)` | Manually add a bot message record to the dialog tree |
-| `rollback(index)` | Roll dialog state back to position `index` in the history |
+| `rollback(index, delete_nodes, delete_messages)` | Roll dialog state back to position `index`; optionally delete rolled-back nodes and their Telegram messages |
 | `switch_node(node_id)` | Jump to any node in the dialog tree |
 | `data` | Current dialog data dict (read/write) |
 | `temp` | Per-request scratch dict (not persisted) |
@@ -276,6 +277,60 @@ manager.set_user_message_filter(
 ```
 
 The filter receives the `Message` object and returns `True` to save or `False` to skip. One filter per dialog type; if no filter is registered for a type, all messages are saved.
+
+### Node deletion
+
+Dialog nodes can be removed from the tree independently of Telegram messages, or together with them. All deletion methods accept an optional `delete_messages` flag that controls whether the corresponding Telegram messages are deleted via the Bot API.
+
+**Delete a single node and its entire subtree:**
+
+```python
+# Remove from dialog tree only (Telegram messages are kept)
+await op.delete_node(node_id)
+
+# Remove from dialog tree AND delete Telegram messages
+await op.delete_node(node_id, delete_messages=True)
+```
+
+When a node is deleted, all its descendants are deleted too. If the current node is inside the deleted subtree, `current_id` is moved to the parent of the deleted subtree root.
+
+**Delete a Telegram message and optionally its node:**
+
+```python
+# Delete only the Telegram message (default behaviour, unchanged)
+await op.delete_message(record)
+
+# Delete the Telegram message and remove the node from the tree
+await op.delete_message(record, delete_node=True)
+
+# Delete the Telegram message, remove the node, and also delete descendant messages
+await op.delete_message(record, delete_node=True, delete_messages=True)
+```
+
+**Bulk delete with node cleanup:**
+
+```python
+# Delete all messages and clear the entire dialog tree
+await op.delete_all_messages(delete_nodes=True)
+
+# Delete messages on the current branch only and remove those nodes
+await op.delete_all_messages(only_current_branch=True, delete_nodes=True)
+```
+
+When `only_current_branch=True`, nodes on the current path are removed. Any sibling branches that branch off from the deleted path are re-parented to the virtual root and preserved.
+
+**Rollback with node deletion:**
+
+```python
+# Standard rollback — nodes are kept in the tree (history is preserved)
+await op.rollback(1)
+
+# Rollback and discard the rolled-back nodes from the tree
+await op.rollback(1, delete_nodes=True)
+
+# Rollback, discard nodes, and delete their Telegram messages
+await op.rollback(1, delete_nodes=True, delete_messages=True)
+```
 
 ### Storage
 
