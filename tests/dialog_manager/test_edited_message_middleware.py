@@ -1,9 +1,9 @@
 from datetime import datetime, timezone
 
-from aiogram.types import Chat, Message, User
+from aiogram.types import Chat, Message
 
 from aiogram_dialog_manager.dialog_manager import DialogManager
-from aiogram_dialog_manager.instance.message import BotMessageRecord, UserMessageRecord
+from aiogram_dialog_manager.instance.message import UserMessageRecord
 from aiogram_dialog_manager.storage.memory import MemoryStorage
 from tests.helpers import StubDialog
 

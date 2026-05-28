@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Union
 
 from aiogram.filters import Filter
 from aiogram.types import CallbackQuery
@@ -8,11 +8,13 @@ from aiogram_dialog_manager.prototype.button import ButtonPrototype
 
 
 class ButtonFilter(Filter):
-    def __init__(self, button: ButtonPrototype | str, **data):
-        self.button = button
-        self.data = data or {}
+    def __init__(self, *buttons: Union[ButtonPrototype, str], **data):
+        self.button_names = tuple(
+            b.name if isinstance(b, ButtonPrototype) else b for b in buttons
+        )
+        self.data = data
 
     async def __call__(self, callback: CallbackQuery, button: Optional[ButtonInstance] = None):
-        return (button
-                and button.type_name == (self.button.name if isinstance(self.button, ButtonPrototype) else self.button)
+        return (button is not None
+                and (not self.button_names or button.type_name in self.button_names)
                 and set(self.data.items()).issubset(set(button.data.items())))

@@ -447,4 +447,3 @@ class DialogOperator:
                 self._dialog.delete_current_branch()
             else:
                 self._dialog.clear_all_nodes()
-                   

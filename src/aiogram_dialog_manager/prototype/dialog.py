@@ -1,5 +1,5 @@
 import uuid
-from abc import ABC, abstractmethod
+from abc import ABC
 from typing import Optional, Any, ClassVar
 
 from aiogram_dialog_manager.instance.dialog import DialogInstance, DialogConfig

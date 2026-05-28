@@ -3,7 +3,6 @@ from unittest.mock import MagicMock
 from aiogram.types import InlineKeyboardMarkup
 
 from aiogram_dialog_manager.dialog_manager import DialogManager
-from aiogram_dialog_manager.instance.menu import MenuInstance
 from aiogram_dialog_manager.storage.memory import MemoryStorage
 from tests.helpers import StubMenu
 

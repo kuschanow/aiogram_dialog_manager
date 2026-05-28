@@ -53,7 +53,7 @@ class TestTtl:
         manager, storage = make_manager(dialog_ttl=3600)
         op = await manager.create_dialog(StubDialog(), 1, 2, mock_bot)
         await manager.set_active_dialog(op)  # set active first
-        await manager.save(op)              # then save refreshes TTL
+        await manager.save(op)  # then save refreshes TTL
         _, expire_at = storage._storage["active:1:2"]
         assert expire_at is not None
 

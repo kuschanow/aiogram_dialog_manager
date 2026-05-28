@@ -11,11 +11,11 @@ from aiogram.types import (
 )
 from pydantic import TypeAdapter
 
+from aiogram_dialog_manager.dialog_operator import DialogOperator
+from aiogram_dialog_manager.instance.button import ButtonInstance
 from aiogram_dialog_manager.instance.dialog import DialogInstance
 from aiogram_dialog_manager.instance.menu import MenuInstance, AnyMenuInstance
 from aiogram_dialog_manager.instance.message import BotMessageRecord, UserMessageRecord, AnyMessageRecord
-from aiogram_dialog_manager.instance.button import ButtonInstance
-from aiogram_dialog_manager.dialog_operator import DialogOperator
 from aiogram_dialog_manager.prototype.dialog import DialogPrototype
 from aiogram_dialog_manager.storage.base import BaseStorage
 
@@ -64,10 +64,10 @@ def _find_button(instance: DialogInstance, button_id: str) -> Optional[tuple[Bot
 
 class DialogManager:
     def __init__(
-        self,
-        storage: BaseStorage,
-        dialog_ttl: Optional[int] = None,
-        standalone_menu_ttl: Optional[int] = None,
+            self,
+            storage: BaseStorage,
+            dialog_ttl: Optional[int] = None,
+            standalone_menu_ttl: Optional[int] = None,
     ):
         self._storage = storage
         self._dialog_ttl = dialog_ttl
@@ -83,13 +83,13 @@ class DialogManager:
         self._dead_button_handler = handler
 
     async def create_dialog(
-        self,
-        prototype: DialogPrototype,
-        user_id: int,
-        chat_id: int,
-        bot: Bot,
-        context: Optional[dict[str, Any]] = None,
-        ttl: Optional[int] = _UNSET,
+            self,
+            prototype: DialogPrototype,
+            user_id: int,
+            chat_id: int,
+            bot: Bot,
+            context: Optional[dict[str, Any]] = None,
+            ttl: Optional[int] = _UNSET,
     ) -> DialogOperator:
         instance = await prototype.get_instance(user_id, chat_id, context)
         operator = DialogOperator(instance, bot)
@@ -144,9 +144,9 @@ class DialogManager:
         await self._storage.remove(f"dialog:{instance.id}")
 
     async def save_standalone_menu(
-        self,
-        instance: AnyMenuInstance,
-        ttl: Optional[int] = _UNSET,
+            self,
+            instance: AnyMenuInstance,
+            ttl: Optional[int] = _UNSET,
     ) -> AnyMenuInstance:
         effective_ttl = self._standalone_menu_ttl if ttl is _UNSET else ttl
         await self._storage.set(f"standalone:{instance.id}", instance.model_dump(mode="json"), ttl=effective_ttl)
@@ -195,10 +195,10 @@ class DialogManager:
         dp.message_reaction.outer_middleware.register(self._message_reaction_middleware)
 
     async def _message_middleware(
-        self,
-        handler: Callable[[Message, Dict[str, Any]], Awaitable[Any]],
-        message: Message,
-        data: Dict[str, Any],
+            self,
+            handler: Callable[[Message, Dict[str, Any]], Awaitable[Any]],
+            message: Message,
+            data: Dict[str, Any],
     ) -> Any:
         bot: Bot = data["bot"]
         operator = None
@@ -221,10 +221,10 @@ class DialogManager:
         return result
 
     async def _callback_middleware(
-        self,
-        handler: Callable[[CallbackQuery, Dict[str, Any]], Awaitable[Any]],
-        callback: CallbackQuery,
-        data: Dict[str, Any],
+            self,
+            handler: Callable[[CallbackQuery, Dict[str, Any]], Awaitable[Any]],
+            callback: CallbackQuery,
+            data: Dict[str, Any],
     ) -> Any:
         bot: Bot = data["bot"]
         operator = None
@@ -274,10 +274,10 @@ class DialogManager:
         return result
 
     async def _edited_message_middleware(
-        self,
-        handler: Callable[[Message, Dict[str, Any]], Awaitable[Any]],
-        message: Message,
-        data: Dict[str, Any],
+            self,
+            handler: Callable[[Message, Dict[str, Any]], Awaitable[Any]],
+            message: Message,
+            data: Dict[str, Any],
     ) -> Any:
         bot: Bot = data["bot"]
         operator = None
@@ -299,10 +299,10 @@ class DialogManager:
         return result
 
     async def _chat_member_updated_middleware(
-        self,
-        handler: Callable[[ChatMemberUpdated, Dict[str, Any]], Awaitable[Any]],
-        update: ChatMemberUpdated,
-        data: Dict[str, Any],
+            self,
+            handler: Callable[[ChatMemberUpdated, Dict[str, Any]], Awaitable[Any]],
+            update: ChatMemberUpdated,
+            data: Dict[str, Any],
     ) -> Any:
         bot: Bot = data["bot"]
         operator = await self.get_active_dialog(update.from_user.id, update.chat.id, bot)
@@ -318,10 +318,10 @@ class DialogManager:
         return result
 
     async def _poll_answer_middleware(
-        self,
-        handler: Callable[[PollAnswer, Dict[str, Any]], Awaitable[Any]],
-        poll_answer: PollAnswer,
-        data: Dict[str, Any],
+            self,
+            handler: Callable[[PollAnswer, Dict[str, Any]], Awaitable[Any]],
+            poll_answer: PollAnswer,
+            data: Dict[str, Any],
     ) -> Any:
         bot: Bot = data["bot"]
         operator = None
@@ -345,10 +345,10 @@ class DialogManager:
         return result
 
     async def _message_reaction_middleware(
-        self,
-        handler: Callable[[MessageReactionUpdated, Dict[str, Any]], Awaitable[Any]],
-        reaction: MessageReactionUpdated,
-        data: Dict[str, Any],
+            self,
+            handler: Callable[[MessageReactionUpdated, Dict[str, Any]], Awaitable[Any]],
+            reaction: MessageReactionUpdated,
+            data: Dict[str, Any],
     ) -> Any:
         bot: Bot = data["bot"]
         operator = None

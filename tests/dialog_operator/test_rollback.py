@@ -1,7 +1,6 @@
 from aiogram.exceptions import TelegramBadRequest
 
 from aiogram_dialog_manager.instance.message import MessageTarget
-from tests.conftest import make_tg_message
 from tests.helpers import StubText
 
 

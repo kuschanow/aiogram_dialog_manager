@@ -24,14 +24,14 @@ class MediaGroupMessagePrototype(BaseMessagePrototype, ABC):
         )
 
     async def _do_send(
-        self,
-        bot: Bot,
-        dialog,
-        context: Optional[dict[str, Any]],
-        target: MessageTarget,
-        instance: BotMessageInstance,
-        effective_params: SendParams,
-        reply_markup: AnyReplyMarkup,
+            self,
+            bot: Bot,
+            dialog,
+            context: Optional[dict[str, Any]],
+            target: MessageTarget,
+            instance: BotMessageInstance,
+            effective_params: SendParams,
+            reply_markup: AnyReplyMarkup,
     ) -> Message:
         media = await self.get_media(dialog, context)
         params = {k: v for k, v in effective_params.model_dump(exclude_unset=True).items() if k in _NO_SUGGESTED_POST_PARAMS}

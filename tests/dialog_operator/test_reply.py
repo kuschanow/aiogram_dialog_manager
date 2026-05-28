@@ -1,5 +1,4 @@
 from aiogram_dialog_manager.instance.message import BotMessageRecord, MessageTarget
-from tests.conftest import make_tg_message
 from tests.helpers import StubText
 
 
