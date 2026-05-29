@@ -15,10 +15,10 @@ MediaGroupItem = Union[InputMediaAudio, InputMediaDocument, InputMediaPhoto, Inp
 
 class MediaGroupMessagePrototype(BaseMessagePrototype, ABC):
     @abstractmethod
-    async def get_media(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> list[MediaGroupItem]:
+    async def get_media(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> list[MediaGroupItem]:
         pass
 
-    async def get_instance(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> BotMessageInstance:
+    async def get_instance(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> BotMessageInstance:
         return BotMessageInstance(
             type_name=self.name,
             menu=await self.get_menu(dialog, context),
@@ -29,7 +29,7 @@ class MediaGroupMessagePrototype(BaseMessagePrototype, ABC):
     async def _do_send(
             self,
             bot: Bot,
-            dialog: "Optional[DialogOperator]",
+            dialog: "DialogOperator",
             context: Optional[dict[str, Any]],
             target: MessageTarget,
             instance: BotMessageInstance,

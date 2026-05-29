@@ -21,17 +21,17 @@ class LocationExtraParams(BaseModel):
 
 class LocationMessagePrototype(BaseMessagePrototype, ABC):
     @abstractmethod
-    async def get_latitude(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> float:
+    async def get_latitude(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> float:
         pass
 
     @abstractmethod
-    async def get_longitude(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> float:
+    async def get_longitude(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> float:
         pass
 
-    async def get_extra_params(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> LocationExtraParams:
+    async def get_extra_params(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> LocationExtraParams:
         return LocationExtraParams()
 
-    async def get_instance(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> BotMessageInstance:
+    async def get_instance(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> BotMessageInstance:
         return BotMessageInstance(
             type_name=self.name,
             menu=await self.get_menu(dialog, context),
@@ -42,7 +42,7 @@ class LocationMessagePrototype(BaseMessagePrototype, ABC):
     async def _do_send(
             self,
             bot: Bot,
-            dialog: "Optional[DialogOperator]",
+            dialog: "DialogOperator",
             context: Optional[dict[str, Any]],
             target: MessageTarget,
             instance: BotMessageInstance,

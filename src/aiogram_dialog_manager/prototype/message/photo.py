@@ -19,13 +19,13 @@ class PhotoExtraParams(BaseModel):
 
 class PhotoMessagePrototype(InputMediaPrototype, ABC):
     @abstractmethod
-    async def get_photo(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> Union[str, InputFile]:
+    async def get_photo(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> Union[str, InputFile]:
         pass
 
-    async def get_extra_params(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> PhotoExtraParams:
+    async def get_extra_params(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> PhotoExtraParams:
         return PhotoExtraParams()
 
-    async def get_input_media(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]], parse_mode=None) -> InputMediaPhoto:
+    async def get_input_media(self, dialog: "DialogOperator", context: Optional[dict[str, Any]], parse_mode=None) -> InputMediaPhoto:
         extra = await self.get_extra_params(dialog, context)
         text_content = await self.get_text_content(dialog, context)
         return InputMediaPhoto(
@@ -40,7 +40,7 @@ class PhotoMessagePrototype(InputMediaPrototype, ABC):
     async def _do_send(
             self,
             bot: Bot,
-            dialog: "Optional[DialogOperator]",
+            dialog: "DialogOperator",
             context: Optional[dict[str, Any]],
             target: MessageTarget,
             instance: BotMessageInstance,

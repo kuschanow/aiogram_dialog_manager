@@ -25,10 +25,10 @@ class VideoNoteMessagePrototype(BaseMessagePrototype, ABC):
     async def get_video_note(self, dialog, context: Optional[dict[str, Any]]) -> Union[str, InputFile]:
         pass
 
-    async def get_extra_params(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> VideoNoteExtraParams:
+    async def get_extra_params(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> VideoNoteExtraParams:
         return VideoNoteExtraParams()
 
-    async def get_instance(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> BotMessageInstance:
+    async def get_instance(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> BotMessageInstance:
         return BotMessageInstance(
             type_name=self.name,
             menu=await self.get_menu(dialog, context),
@@ -39,7 +39,7 @@ class VideoNoteMessagePrototype(BaseMessagePrototype, ABC):
     async def _do_send(
             self,
             bot: Bot,
-            dialog: "Optional[DialogOperator]",
+            dialog: "DialogOperator",
             context: Optional[dict[str, Any]],
             target: MessageTarget,
             instance: BotMessageInstance,

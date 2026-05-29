@@ -18,13 +18,13 @@ class StickerExtraParams(BaseModel):
 
 class StickerMessagePrototype(BaseMessagePrototype, ABC):
     @abstractmethod
-    async def get_sticker(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> Union[str, InputFile]:
+    async def get_sticker(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> Union[str, InputFile]:
         pass
 
-    async def get_extra_params(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> StickerExtraParams:
+    async def get_extra_params(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> StickerExtraParams:
         return StickerExtraParams()
 
-    async def get_instance(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> BotMessageInstance:
+    async def get_instance(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> BotMessageInstance:
         return BotMessageInstance(
             type_name=self.name,
             menu=await self.get_menu(dialog, context),
@@ -35,7 +35,7 @@ class StickerMessagePrototype(BaseMessagePrototype, ABC):
     async def _do_send(
             self,
             bot: Bot,
-            dialog: "Optional[DialogOperator]",
+            dialog: "DialogOperator",
             context: Optional[dict[str, Any]],
             target: MessageTarget,
             instance: BotMessageInstance,

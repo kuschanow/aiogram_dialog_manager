@@ -29,13 +29,13 @@ class VideoExtraParams(BaseModel):
 
 class VideoMessagePrototype(InputMediaPrototype, ABC):
     @abstractmethod
-    async def get_video(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> Union[str, InputFile]:
+    async def get_video(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> Union[str, InputFile]:
         pass
 
-    async def get_extra_params(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> VideoExtraParams:
+    async def get_extra_params(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> VideoExtraParams:
         return VideoExtraParams()
 
-    async def get_input_media(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]], parse_mode=None) -> InputMediaVideo:
+    async def get_input_media(self, dialog: "DialogOperator", context: Optional[dict[str, Any]], parse_mode=None) -> InputMediaVideo:
         extra = await self.get_extra_params(dialog, context)
         text_content = await self.get_text_content(dialog, context)
         return InputMediaVideo(
@@ -57,7 +57,7 @@ class VideoMessagePrototype(InputMediaPrototype, ABC):
     async def _do_send(
             self,
             bot: Bot,
-            dialog: "Optional[DialogOperator]",
+            dialog: "DialogOperator",
             context: Optional[dict[str, Any]],
             target: MessageTarget,
             instance: BotMessageInstance,

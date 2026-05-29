@@ -21,13 +21,13 @@ class DocumentExtraParams(BaseModel):
 
 class DocumentMessagePrototype(InputMediaPrototype, ABC):
     @abstractmethod
-    async def get_document(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> Union[str, InputFile]:
+    async def get_document(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> Union[str, InputFile]:
         pass
 
-    async def get_extra_params(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> DocumentExtraParams:
+    async def get_extra_params(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> DocumentExtraParams:
         return DocumentExtraParams()
 
-    async def get_input_media(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]], parse_mode=None) -> InputMediaDocument:
+    async def get_input_media(self, dialog: "DialogOperator", context: Optional[dict[str, Any]], parse_mode=None) -> InputMediaDocument:
         extra = await self.get_extra_params(dialog, context)
         text_content = await self.get_text_content(dialog, context)
         return InputMediaDocument(
@@ -42,7 +42,7 @@ class DocumentMessagePrototype(InputMediaPrototype, ABC):
     async def _do_send(
             self,
             bot: Bot,
-            dialog: "Optional[DialogOperator]",
+            dialog: "DialogOperator",
             context: Optional[dict[str, Any]],
             target: MessageTarget,
             instance: BotMessageInstance,

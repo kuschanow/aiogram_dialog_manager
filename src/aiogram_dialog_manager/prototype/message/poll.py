@@ -30,17 +30,17 @@ class PollExtraParams(BaseModel):
 
 class PollMessagePrototype(BaseMessagePrototype, ABC):
     @abstractmethod
-    async def get_question(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> str:
+    async def get_question(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> str:
         pass
 
     @abstractmethod
-    async def get_options(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> list[Union[InputPollOption, str]]:
+    async def get_options(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> list[Union[InputPollOption, str]]:
         pass
 
-    async def get_extra_params(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> PollExtraParams:
+    async def get_extra_params(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> PollExtraParams:
         return PollExtraParams()
 
-    async def get_instance(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> BotMessageInstance:
+    async def get_instance(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> BotMessageInstance:
         return BotMessageInstance(
             type_name=self.name,
             text=await self.get_question(dialog, context),
@@ -52,7 +52,7 @@ class PollMessagePrototype(BaseMessagePrototype, ABC):
     async def _do_send(
             self,
             bot: Bot,
-            dialog: "Optional[DialogOperator]",
+            dialog: "DialogOperator",
             context: Optional[dict[str, Any]],
             target: MessageTarget,
             instance: BotMessageInstance,

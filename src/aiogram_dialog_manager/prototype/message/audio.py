@@ -23,13 +23,13 @@ class AudioExtraParams(BaseModel):
 
 class AudioMessagePrototype(InputMediaPrototype, ABC):
     @abstractmethod
-    async def get_audio(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> Union[str, InputFile]:
+    async def get_audio(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> Union[str, InputFile]:
         pass
 
-    async def get_extra_params(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> AudioExtraParams:
+    async def get_extra_params(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> AudioExtraParams:
         return AudioExtraParams()
 
-    async def get_input_media(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]], parse_mode=None) -> InputMediaAudio:
+    async def get_input_media(self, dialog: "DialogOperator", context: Optional[dict[str, Any]], parse_mode=None) -> InputMediaAudio:
         extra = await self.get_extra_params(dialog, context)
         text_content = await self.get_text_content(dialog, context)
         return InputMediaAudio(
@@ -46,7 +46,7 @@ class AudioMessagePrototype(InputMediaPrototype, ABC):
     async def _do_send(
             self,
             bot: Bot,
-            dialog: "Optional[DialogOperator]",
+            dialog: "DialogOperator",
             context: Optional[dict[str, Any]],
             target: MessageTarget,
             instance: BotMessageInstance,

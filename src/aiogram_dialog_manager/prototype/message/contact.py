@@ -19,17 +19,17 @@ class ContactExtraParams(BaseModel):
 
 class ContactMessagePrototype(BaseMessagePrototype, ABC):
     @abstractmethod
-    async def get_phone_number(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> str:
+    async def get_phone_number(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> str:
         pass
 
     @abstractmethod
-    async def get_first_name(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> str:
+    async def get_first_name(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> str:
         pass
 
-    async def get_extra_params(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> ContactExtraParams:
+    async def get_extra_params(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> ContactExtraParams:
         return ContactExtraParams()
 
-    async def get_instance(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> BotMessageInstance:
+    async def get_instance(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> BotMessageInstance:
         return BotMessageInstance(
             type_name=self.name,
             menu=await self.get_menu(dialog, context),
@@ -40,7 +40,7 @@ class ContactMessagePrototype(BaseMessagePrototype, ABC):
     async def _do_send(
             self,
             bot: Bot,
-            dialog: "Optional[DialogOperator]",
+            dialog: "DialogOperator",
             context: Optional[dict[str, Any]],
             target: MessageTarget,
             instance: BotMessageInstance,

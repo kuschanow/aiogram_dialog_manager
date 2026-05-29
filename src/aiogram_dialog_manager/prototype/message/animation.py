@@ -25,13 +25,13 @@ class AnimationExtraParams(BaseModel):
 
 class AnimationMessagePrototype(InputMediaPrototype, ABC):
     @abstractmethod
-    async def get_animation(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> Union[str, InputFile]:
+    async def get_animation(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> Union[str, InputFile]:
         pass
 
-    async def get_extra_params(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> AnimationExtraParams:
+    async def get_extra_params(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> AnimationExtraParams:
         return AnimationExtraParams()
 
-    async def get_input_media(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]], parse_mode=None) -> InputMediaAnimation:
+    async def get_input_media(self, dialog: "DialogOperator", context: Optional[dict[str, Any]], parse_mode=None) -> InputMediaAnimation:
         extra = await self.get_extra_params(dialog, context)
         text_content = await self.get_text_content(dialog, context)
         return InputMediaAnimation(
@@ -50,7 +50,7 @@ class AnimationMessagePrototype(InputMediaPrototype, ABC):
     async def _do_send(
             self,
             bot: Bot,
-            dialog: "Optional[DialogOperator]",
+            dialog: "DialogOperator",
             context: Optional[dict[str, Any]],
             target: MessageTarget,
             instance: BotMessageInstance,
