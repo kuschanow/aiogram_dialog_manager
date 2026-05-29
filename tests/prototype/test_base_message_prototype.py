@@ -57,3 +57,20 @@ class TestBaseMessagePrototype:
     def test_str_representation(self):
         proto = StubText()
         assert "text_msg" in str(proto)
+
+
+class TestTextContentSerialization:
+    def test_defaults_roundtrip(self):
+        from aiogram_dialog_manager.prototype.base import TextContent
+        content = TextContent()
+        dumped = content.model_dump(mode="json")
+        restored = TextContent.model_validate(dumped)
+        assert restored.text is None
+        assert restored.entities is None
+
+    def test_with_text_roundtrip(self):
+        from aiogram_dialog_manager.prototype.base import TextContent
+        content = TextContent(text="Hello world")
+        dumped = content.model_dump(mode="json")
+        restored = TextContent.model_validate(dumped)
+        assert restored.text == "Hello world"

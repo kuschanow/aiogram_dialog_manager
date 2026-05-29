@@ -28,3 +28,25 @@ class TestLocationMessagePrototype:
         proto = StubLocation()
         extra = await proto.get_extra_params(operator, None)
         assert extra.live_period is None
+
+
+class TestLocationExtraParamsSerialization:
+    def test_defaults_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.location import LocationExtraParams
+        params = LocationExtraParams()
+        dumped = params.model_dump(mode="json")
+        restored = LocationExtraParams.model_validate(dumped)
+        assert restored.horizontal_accuracy is None
+        assert restored.live_period is None
+        assert restored.heading is None
+        assert restored.proximity_alert_radius is None
+
+    def test_with_values_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.location import LocationExtraParams
+        params = LocationExtraParams(horizontal_accuracy=1.5, live_period=60, heading=180, proximity_alert_radius=100)
+        dumped = params.model_dump(mode="json")
+        restored = LocationExtraParams.model_validate(dumped)
+        assert restored.horizontal_accuracy == 1.5
+        assert restored.live_period == 60
+        assert restored.heading == 180
+        assert restored.proximity_alert_radius == 100

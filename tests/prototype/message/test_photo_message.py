@@ -34,3 +34,21 @@ class TestPhotoMessagePrototype:
         proto = StubPhoto()
         extra = await proto.get_extra_params(operator, None)
         assert extra.has_spoiler is None
+
+
+class TestPhotoExtraParamsSerialization:
+    def test_defaults_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.photo import PhotoExtraParams
+        params = PhotoExtraParams()
+        dumped = params.model_dump(mode="json")
+        restored = PhotoExtraParams.model_validate(dumped)
+        assert restored.has_spoiler is None
+        assert restored.show_caption_above_media is None
+
+    def test_with_values_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.photo import PhotoExtraParams
+        params = PhotoExtraParams(has_spoiler=True, show_caption_above_media=False)
+        dumped = params.model_dump(mode="json")
+        restored = PhotoExtraParams.model_validate(dumped)
+        assert restored.has_spoiler is True
+        assert restored.show_caption_above_media is False

@@ -32,3 +32,20 @@ class TestDocumentMessagePrototype:
         proto = StubDocument()
         extra = await proto.get_extra_params(operator, None)
         assert extra.thumbnail is None
+
+
+class TestDocumentExtraParamsSerialization:
+    def test_defaults_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.document import DocumentExtraParams
+        params = DocumentExtraParams()
+        dumped = params.model_dump(mode="json")
+        restored = DocumentExtraParams.model_validate(dumped)
+        assert restored.thumbnail is None
+        assert restored.disable_content_type_detection is None
+
+    def test_with_values_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.document import DocumentExtraParams
+        params = DocumentExtraParams(disable_content_type_detection=True)
+        dumped = params.model_dump(mode="json")
+        restored = DocumentExtraParams.model_validate(dumped)
+        assert restored.disable_content_type_detection is True

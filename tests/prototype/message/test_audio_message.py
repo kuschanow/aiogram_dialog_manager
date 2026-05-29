@@ -32,3 +32,24 @@ class TestAudioMessagePrototype:
         proto = StubAudio()
         extra = await proto.get_extra_params(operator, None)
         assert extra.duration is None
+
+
+class TestAudioExtraParamsSerialization:
+    def test_defaults_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.audio import AudioExtraParams
+        params = AudioExtraParams()
+        dumped = params.model_dump(mode="json")
+        restored = AudioExtraParams.model_validate(dumped)
+        assert restored.duration is None
+        assert restored.performer is None
+        assert restored.title is None
+        assert restored.thumbnail is None
+
+    def test_with_values_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.audio import AudioExtraParams
+        params = AudioExtraParams(duration=120, performer="Artist", title="Song")
+        dumped = params.model_dump(mode="json")
+        restored = AudioExtraParams.model_validate(dumped)
+        assert restored.duration == 120
+        assert restored.performer == "Artist"
+        assert restored.title == "Song"

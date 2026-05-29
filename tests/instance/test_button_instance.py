@@ -33,3 +33,43 @@ class TestButtonInstance:
         b1 = ButtonInstance(text="A", type_name="t")
         b2 = ButtonInstance(text="B", type_name="t")
         assert b1.id != b2.id
+
+
+class TestButtonSerialization:
+    def test_button_additional_parameters_roundtrip(self):
+        from aiogram_dialog_manager.instance.button import ButtonAdditionalParameters
+        params = ButtonAdditionalParameters(style="primary")
+        dumped = params.model_dump(mode="json")
+        restored = ButtonAdditionalParameters.model_validate(dumped)
+        assert restored.style == "primary"
+        assert restored.icon_custom_emoji_id is None
+
+    def test_inline_additional_parameters_roundtrip(self):
+        extra = InlineButtonAdditionalParameters(url="https://example.com", pay=True)
+        dumped = extra.model_dump(mode="json")
+        restored = InlineButtonAdditionalParameters.model_validate(dumped)
+        assert restored.url == "https://example.com"
+        assert restored.pay is True
+
+    def test_common_additional_parameters_roundtrip(self):
+        extra = CommonButtonAdditionalParameters(request_contact=True, request_location=False)
+        dumped = extra.model_dump(mode="json")
+        restored = CommonButtonAdditionalParameters.model_validate(dumped)
+        assert restored.request_contact is True
+        assert restored.request_location is False
+
+    def test_button_instance_roundtrip(self):
+        btn = ButtonInstance(text="Click", type_name="my_btn", data={"k": "v"})
+        dumped = btn.model_dump(mode="json")
+        restored = ButtonInstance.model_validate(dumped)
+        assert restored.id == btn.id
+        assert restored.text == "Click"
+        assert restored.type_name == "my_btn"
+        assert restored.data == {"k": "v"}
+
+    def test_button_instance_with_inline_params_roundtrip(self):
+        extra = InlineButtonAdditionalParameters(url="https://t.me")
+        btn = ButtonInstance(text="Link", type_name="link", inline_additional_parameters=extra)
+        dumped = btn.model_dump(mode="json")
+        restored = ButtonInstance.model_validate(dumped)
+        assert restored.inline_additional_parameters.url == "https://t.me"

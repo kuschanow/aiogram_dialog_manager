@@ -3,12 +3,13 @@ from typing import Optional, Literal, Annotated, Union
 
 from aiogram.client.default import Default
 from aiogram.types import Message, LinkPreviewOptions, MessageEntity, ReplyParameters, SuggestedPostParameters, Chat
-from pydantic import BaseModel, ConfigDict, Field, model_serializer, model_validator
+from pydantic import ConfigDict, Field
 
+from aiogram_dialog_manager.instance.base import BaseDialogModel
 from aiogram_dialog_manager.instance.menu import AnyMenuInstance
 
 
-class BaseMessageRecord(BaseModel):
+class BaseMessageRecord(BaseDialogModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     data: dict = Field(default_factory=dict)
     telegram_message_instance: Message
@@ -18,7 +19,7 @@ class UserMessageRecord(BaseMessageRecord):
     is_bot_message: Literal[False] = Field(False, frozen=True)
 
 
-class MessageTarget(BaseModel):
+class MessageTarget(BaseDialogModel):
     chat_id: Union[int, str] = Field(..., description="Target chat identifier.")
     message_thread_id: Optional[int] = Field(None, description="Target forum topic thread ID.")
     business_connection_id: Optional[str] = Field(None, description="Business connection to send on behalf of.")
@@ -37,7 +38,7 @@ class MessageTarget(BaseModel):
         return cls(chat_id=chat.id)
 
 
-class SendParams(BaseModel):
+class SendParams(BaseDialogModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     parse_mode: Optional[Union[str, Default]] = Field(Default("parse_mode"), description="Mode for parsing entities in the message text.")
@@ -49,29 +50,9 @@ class SendParams(BaseModel):
     suggested_post_parameters: Optional[SuggestedPostParameters] = Field(None, description="Parameters for a suggested post in a channel.")
     reply_parameters: Optional[ReplyParameters] = Field(None, description="Description of the message to reply to.")
     allow_sending_without_reply: Optional[bool] = Field(None, description="Send the message even if the replied-to message is not found.")
-    disable_web_page_preview: Optional[Union[bool, Default]] = Field(Default("link_preview_is_disabled"),
-                                                                     description="Disables link previews for links in this message. Deprecated, use link_preview_options instead.")
-
-    @model_validator(mode="before")
-    @classmethod
-    def _restore_defaults(cls, data):
-        if isinstance(data, dict):
-            return {
-                k: Default(v["__default__"]) if isinstance(v, dict) and "__default__" in v else v
-                for k, v in data.items()
-            }
-        return data
-
-    @model_serializer(mode="plain", when_used="json")
-    def _serialize_defaults(self) -> dict:
-        result = {}
-        for field_name in self.__class__.model_fields:
-            value = getattr(self, field_name)
-            result[field_name] = {"__default__": value.name} if isinstance(value, Default) else value
-        return result
 
 
-class BotMessageInstance(BaseModel):
+class BotMessageInstance(BaseDialogModel):
     type_name: str
     text: Optional[str] = None
     entities: Optional[list[MessageEntity]] = None

@@ -27,3 +27,22 @@ class TestVideoNoteMessagePrototype:
         proto = StubVideoNote()
         extra = await proto.get_extra_params(operator, None)
         assert extra.duration is None
+
+
+class TestVideoNoteExtraParamsSerialization:
+    def test_defaults_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.video_note import VideoNoteExtraParams
+        params = VideoNoteExtraParams()
+        dumped = params.model_dump(mode="json")
+        restored = VideoNoteExtraParams.model_validate(dumped)
+        assert restored.duration is None
+        assert restored.length is None
+        assert restored.thumbnail is None
+
+    def test_with_values_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.video_note import VideoNoteExtraParams
+        params = VideoNoteExtraParams(duration=15, length=240)
+        dumped = params.model_dump(mode="json")
+        restored = VideoNoteExtraParams.model_validate(dumped)
+        assert restored.duration == 15
+        assert restored.length == 240

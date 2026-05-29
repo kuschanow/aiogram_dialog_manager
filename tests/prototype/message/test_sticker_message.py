@@ -27,3 +27,19 @@ class TestStickerMessagePrototype:
         proto = StubSticker()
         extra = await proto.get_extra_params(operator, None)
         assert extra.emoji is None
+
+
+class TestStickerExtraParamsSerialization:
+    def test_defaults_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.sticker import StickerExtraParams
+        params = StickerExtraParams()
+        dumped = params.model_dump(mode="json")
+        restored = StickerExtraParams.model_validate(dumped)
+        assert restored.emoji is None
+
+    def test_with_emoji_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.sticker import StickerExtraParams
+        params = StickerExtraParams(emoji="🎉")
+        dumped = params.model_dump(mode="json")
+        restored = StickerExtraParams.model_validate(dumped)
+        assert restored.emoji == "🎉"

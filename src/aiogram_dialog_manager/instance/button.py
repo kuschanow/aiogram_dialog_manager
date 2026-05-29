@@ -3,10 +3,12 @@ from typing import Optional, Literal
 
 from aiogram.types import WebAppInfo, LoginUrl, SwitchInlineQueryChosenChat, CopyTextButton, CallbackGame, InlineKeyboardButton, KeyboardButton, KeyboardButtonRequestUsers, \
     KeyboardButtonRequestChat, KeyboardButtonPollType
-from pydantic import BaseModel, Field
+from pydantic import Field
+
+from aiogram_dialog_manager.instance.base import BaseDialogModel
 
 
-class ButtonAdditionalParameters(BaseModel):
+class ButtonAdditionalParameters(BaseDialogModel):
     icon_custom_emoji_id: Optional[str] = Field(None, description="Custom emoji ID for the button icon")
     style: Optional[Literal["danger", "success", "primary"]] = Field(None, description="Style of the button")
     web_app: Optional[WebAppInfo] = Field(None, description="Description of the Web App that will be launched when the user presses the button")
@@ -41,7 +43,7 @@ class CommonButtonAdditionalParameters(ButtonAdditionalParameters):
                                                                              "and send it to the bot when the button is pressed. Available in private chats only.")
 
 
-class ButtonInstance(BaseModel):
+class ButtonInstance(BaseDialogModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex, description="Unique identifier for the button")
     text: str = Field(..., description="Text to be displayed on the button")
     type_name: str = Field(..., description="Type name of the button, used to identify which prototype it was created from")

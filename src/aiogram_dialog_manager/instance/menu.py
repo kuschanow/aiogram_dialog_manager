@@ -3,12 +3,13 @@ from abc import abstractmethod
 from typing import Optional, Literal, Annotated, Union
 
 from aiogram.types import InlineKeyboardMarkup, ReplyKeyboardMarkup, ReplyKeyboardRemove, ForceReply, ReplyMarkupUnion
-from pydantic import BaseModel, Field
+from pydantic import Field
 
+from aiogram_dialog_manager.instance.base import BaseDialogModel
 from aiogram_dialog_manager.instance.button import ButtonInstance
 
 
-class AdditionalReplyMenuParameters(BaseModel):
+class AdditionalReplyMenuParameters(BaseDialogModel):
     is_persistent: bool = Field(default=False, description="Requests clients to always show the keyboard when the regular keyboard is hidden. "
                                                            "The user can hide the keyboard using a special button in the input field, "
                                                            "and the keyboard will automatically be shown again when the user starts typing in the input field.")
@@ -23,7 +24,7 @@ class AdditionalReplyMenuParameters(BaseModel):
                                                        "2) if the bot's message is a reply (has reply_to_message_id), sender of the original message.")
 
 
-class BaseMenuInstance(BaseModel):
+class BaseMenuInstance(BaseDialogModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex, description="A unique identifier for the menu instance.")
     type_name: str = Field(..., description="The type name of the menu, used to identify which prototype it was created from.")
     data: dict = Field(default_factory=dict, description="Additional data for the menu, can be used for dynamic content or state management.")

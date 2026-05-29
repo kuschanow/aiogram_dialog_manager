@@ -27,3 +27,19 @@ class TestVoiceMessagePrototype:
         proto = StubVoice()
         extra = await proto.get_extra_params(operator, None)
         assert extra.duration is None
+
+
+class TestVoiceExtraParamsSerialization:
+    def test_defaults_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.voice import VoiceExtraParams
+        params = VoiceExtraParams()
+        dumped = params.model_dump(mode="json")
+        restored = VoiceExtraParams.model_validate(dumped)
+        assert restored.duration is None
+
+    def test_with_duration_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.voice import VoiceExtraParams
+        params = VoiceExtraParams(duration=45)
+        dumped = params.model_dump(mode="json")
+        restored = VoiceExtraParams.model_validate(dumped)
+        assert restored.duration == 45

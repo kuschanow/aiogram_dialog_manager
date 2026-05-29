@@ -2,12 +2,13 @@ import uuid
 from datetime import datetime, timezone
 from typing import Optional
 
-from pydantic import BaseModel, Field, ConfigDict
+from pydantic import Field, ConfigDict
 
+from aiogram_dialog_manager.instance.base import BaseDialogModel
 from aiogram_dialog_manager.instance.message import AnyMessageRecord
 
 
-class DialogNode(BaseModel):
+class DialogNode(BaseDialogModel):
     id: str = Field(default_factory=lambda: uuid.uuid4().hex)
     message: AnyMessageRecord = Field(..., description="The message associated with this node.")
     parent_id: Optional[str] = Field(None, description="None if the parent is the virtual root.")
@@ -16,7 +17,7 @@ class DialogNode(BaseModel):
     data_after_id: Optional[str] = Field(None, description="Snapshot ID of dialog data after this message was processed. None until the node is finalized.")
 
 
-class TreeNodeView(BaseModel):
+class TreeNodeView(BaseDialogModel):
     node_id: str = Field(..., description="The ID of the corresponding DialogNode.")
     message: AnyMessageRecord = Field(..., description="The message associated with this node.")
     data_before: dict = Field(..., description="Dialog data state before this message was processed.")
@@ -24,16 +25,16 @@ class TreeNodeView(BaseModel):
     children: list["TreeNodeView"] = Field(default_factory=list, description="Child nodes representing branches that follow this message.")
 
 
-class TreeView(BaseModel):
+class TreeView(BaseDialogModel):
     children: list[TreeNodeView] = Field(default_factory=list, description="Children of the virtual root, i.e. all possible first messages of the dialog.")
 
 
-class DialogConfig(BaseModel):
+class DialogConfig(BaseDialogModel):
     save_user_message_nodes: bool = Field(False, description="Whether to preserve dialog nodes when a user message is edited or deleted.")
     save_bot_message_nodes: bool = Field(True, description="Whether to preserve dialog nodes when a bot message is edited or deleted.")
 
 
-class DialogInstance(BaseModel):
+class DialogInstance(BaseDialogModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     id: str = Field(default_factory=lambda: uuid.uuid4().hex, description="The unique identifier of the dialog instance.")

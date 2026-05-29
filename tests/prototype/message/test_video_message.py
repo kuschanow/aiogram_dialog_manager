@@ -32,3 +32,36 @@ class TestVideoMessagePrototype:
         proto = StubVideo()
         extra = await proto.get_extra_params(operator, None)
         assert extra.duration is None
+
+
+class TestVideoExtraParamsSerialization:
+    def test_defaults_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.video import VideoExtraParams
+        params = VideoExtraParams()
+        dumped = params.model_dump(mode="json")
+        restored = VideoExtraParams.model_validate(dumped)
+        assert restored.duration is None
+        assert restored.thumbnail is None
+        assert restored.has_spoiler is None
+
+    def test_with_values_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.video import VideoExtraParams
+        params = VideoExtraParams(
+            duration=30, width=1280, height=720,
+            has_spoiler=True, show_caption_above_media=False, supports_streaming=True,
+        )
+        dumped = params.model_dump(mode="json")
+        restored = VideoExtraParams.model_validate(dumped)
+        assert restored.duration == 30
+        assert restored.width == 1280
+        assert restored.height == 720
+        assert restored.has_spoiler is True
+        assert restored.show_caption_above_media is False
+        assert restored.supports_streaming is True
+
+    def test_cover_as_str_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.video import VideoExtraParams
+        params = VideoExtraParams(cover="file_id_123")
+        dumped = params.model_dump(mode="json")
+        restored = VideoExtraParams.model_validate(dumped)
+        assert restored.cover == "file_id_123"

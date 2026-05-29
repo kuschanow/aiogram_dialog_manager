@@ -32,3 +32,24 @@ class TestAnimationMessagePrototype:
         proto = StubAnimation()
         extra = await proto.get_extra_params(operator, None)
         assert extra.duration is None
+
+
+class TestAnimationExtraParamsSerialization:
+    def test_defaults_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.animation import AnimationExtraParams
+        params = AnimationExtraParams()
+        dumped = params.model_dump(mode="json")
+        restored = AnimationExtraParams.model_validate(dumped)
+        assert restored.duration is None
+        assert restored.thumbnail is None
+
+    def test_with_values_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.animation import AnimationExtraParams
+        params = AnimationExtraParams(duration=10, width=640, height=480, has_spoiler=True, show_caption_above_media=False)
+        dumped = params.model_dump(mode="json")
+        restored = AnimationExtraParams.model_validate(dumped)
+        assert restored.duration == 10
+        assert restored.width == 640
+        assert restored.height == 480
+        assert restored.has_spoiler is True
+        assert restored.show_caption_above_media is False

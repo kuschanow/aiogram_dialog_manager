@@ -1,7 +1,10 @@
 import asyncio
 
-from aiogram_dialog_manager.instance.message import UserMessageRecord
-from tests.conftest import make_tg_message
+from aiogram.client.default import Default
+
+from aiogram_dialog_manager.instance.dialog import DialogConfig, DialogInstance
+from aiogram_dialog_manager.instance.message import BotMessageRecord, UserMessageRecord
+from tests.conftest import make_dialog_instance, make_tg_message
 from tests.helpers import StubDialog
 
 
@@ -277,3 +280,58 @@ class TestClearAllNodes:
         inst.clear_all_nodes(preserve_data=True)
         assert inst.nodes == {}
         assert inst.data["key"] == "current"
+
+
+class TestDialogConfigSerialization:
+    def test_roundtrip(self):
+        config = DialogConfig(save_user_message_nodes=True, save_bot_message_nodes=False)
+        dumped = config.model_dump(mode="json")
+        restored = DialogConfig.model_validate(dumped)
+        assert restored.save_user_message_nodes is True
+        assert restored.save_bot_message_nodes is False
+
+
+class TestDialogInstanceSerialization:
+    def test_empty_dialog_roundtrip(self):
+        inst = make_dialog_instance()
+        dumped = inst.model_dump(mode="json")
+        restored = DialogInstance.model_validate(dumped)
+        assert restored.id == inst.id
+        assert restored.type_name == inst.type_name
+        assert restored.nodes == {}
+
+    def test_dialog_with_user_message_roundtrip(self):
+        inst = make_dialog_instance()
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message()))
+        dumped = inst.model_dump(mode="json")
+        restored = DialogInstance.model_validate(dumped)
+        assert restored.current_id == inst.current_id
+        assert len(restored.nodes) == 1
+
+    def test_dialog_with_bot_message_roundtrip(self):
+        inst = make_dialog_instance()
+        inst.append_message(BotMessageRecord(type_name="test", telegram_message_instance=make_tg_message()))
+        dumped = inst.model_dump(mode="json")
+        restored = DialogInstance.model_validate(dumped)
+        assert restored.current_id == inst.current_id
+        node = restored.nodes[restored.current_id]
+        assert node.message.type_name == "test"
+        assert isinstance(node.message.send_params.parse_mode, Default)
+
+    def test_dialog_data_survives_roundtrip(self):
+        inst = make_dialog_instance()
+        inst.data["key"] = "value"
+        dumped = inst.model_dump(mode="json")
+        restored = DialogInstance.model_validate(dumped)
+        assert restored.data["key"] == "value"
+
+    def test_tree_view_roundtrip(self):
+        inst = make_dialog_instance()
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message(1)))
+        inst.append_message(UserMessageRecord(telegram_message_instance=make_tg_message(2)))
+        tree = inst.build_tree()
+        dumped = tree.model_dump(mode="json")
+        from aiogram_dialog_manager.instance.dialog import TreeView
+        restored = TreeView.model_validate(dumped)
+        assert len(restored.children) == 1
+        assert len(restored.children[0].children) == 1

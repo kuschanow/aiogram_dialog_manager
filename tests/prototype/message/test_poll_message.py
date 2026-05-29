@@ -29,3 +29,42 @@ class TestPollMessagePrototype:
         proto = StubPoll()
         extra = await proto.get_extra_params(operator, None)
         assert extra.is_anonymous is None
+
+
+class TestPollExtraParamsSerialization:
+    def test_defaults_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.poll import PollExtraParams
+        params = PollExtraParams()
+        dumped = params.model_dump(mode="json")
+        restored = PollExtraParams.model_validate(dumped)
+        assert restored.is_anonymous is None
+        assert restored.type is None
+        assert restored.close_date is None
+
+    def test_with_values_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.poll import PollExtraParams
+        params = PollExtraParams(
+            is_anonymous=False,
+            type="quiz",
+            allows_multiple_answers=True,
+            correct_option_id=0,
+            explanation="Because",
+            open_period=30,
+            is_closed=False,
+        )
+        dumped = params.model_dump(mode="json")
+        restored = PollExtraParams.model_validate(dumped)
+        assert restored.is_anonymous is False
+        assert restored.type == "quiz"
+        assert restored.allows_multiple_answers is True
+        assert restored.correct_option_id == 0
+        assert restored.explanation == "Because"
+        assert restored.open_period == 30
+        assert restored.is_closed is False
+
+    def test_close_date_as_int_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.poll import PollExtraParams
+        params = PollExtraParams(close_date=9999999999)
+        dumped = params.model_dump(mode="json")
+        restored = PollExtraParams.model_validate(dumped)
+        assert restored.close_date == 9999999999

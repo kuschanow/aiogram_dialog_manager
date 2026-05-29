@@ -27,3 +27,21 @@ class TestContactMessagePrototype:
         proto = StubContact()
         extra = await proto.get_extra_params(operator, None)
         assert extra.last_name is None
+
+
+class TestContactExtraParamsSerialization:
+    def test_defaults_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.contact import ContactExtraParams
+        params = ContactExtraParams()
+        dumped = params.model_dump(mode="json")
+        restored = ContactExtraParams.model_validate(dumped)
+        assert restored.last_name is None
+        assert restored.vcard is None
+
+    def test_with_values_roundtrip(self):
+        from aiogram_dialog_manager.prototype.message.contact import ContactExtraParams
+        params = ContactExtraParams(last_name="Doe", vcard="BEGIN:VCARD")
+        dumped = params.model_dump(mode="json")
+        restored = ContactExtraParams.model_validate(dumped)
+        assert restored.last_name == "Doe"
+        assert restored.vcard == "BEGIN:VCARD"
