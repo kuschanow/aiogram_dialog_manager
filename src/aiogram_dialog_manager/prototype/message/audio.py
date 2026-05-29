@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Any, Union
+from typing import Optional, Any, Union, TYPE_CHECKING
 
 from aiogram import Bot
 from aiogram.types import InputFile, InputMediaAudio, Message
@@ -7,6 +7,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from aiogram_dialog_manager.instance.message import BotMessageInstance, SendParams, MessageTarget
 from aiogram_dialog_manager.prototype.base import InputMediaPrototype, AnyReplyMarkup, _CAPTION_MEDIA_PARAMS
+
+if TYPE_CHECKING:
+    from aiogram_dialog_manager.dialog_operator import DialogOperator
 
 
 class AudioExtraParams(BaseModel):
@@ -20,13 +23,13 @@ class AudioExtraParams(BaseModel):
 
 class AudioMessagePrototype(InputMediaPrototype, ABC):
     @abstractmethod
-    async def get_audio(self, dialog, context: Optional[dict[str, Any]]) -> Union[str, InputFile]:
+    async def get_audio(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> Union[str, InputFile]:
         pass
 
-    async def get_extra_params(self, dialog, context: Optional[dict[str, Any]]) -> AudioExtraParams:
+    async def get_extra_params(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> AudioExtraParams:
         return AudioExtraParams()
 
-    async def get_input_media(self, dialog, context: Optional[dict[str, Any]], parse_mode=None) -> InputMediaAudio:
+    async def get_input_media(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]], parse_mode=None) -> InputMediaAudio:
         extra = await self.get_extra_params(dialog, context)
         text_content = await self.get_text_content(dialog, context)
         return InputMediaAudio(
@@ -43,7 +46,7 @@ class AudioMessagePrototype(InputMediaPrototype, ABC):
     async def _do_send(
             self,
             bot: Bot,
-            dialog,
+            dialog: "Optional[DialogOperator]",
             context: Optional[dict[str, Any]],
             target: MessageTarget,
             instance: BotMessageInstance,

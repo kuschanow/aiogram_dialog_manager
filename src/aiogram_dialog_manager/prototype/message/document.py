@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Any, Union
+from typing import Optional, Any, Union, TYPE_CHECKING
 
 from aiogram import Bot
 from aiogram.types import InputFile, InputMediaDocument, Message
@@ -7,6 +7,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from aiogram_dialog_manager.instance.message import BotMessageInstance, SendParams, MessageTarget
 from aiogram_dialog_manager.prototype.base import InputMediaPrototype, AnyReplyMarkup, _CAPTION_MEDIA_PARAMS
+
+if TYPE_CHECKING:
+    from aiogram_dialog_manager.dialog_operator import DialogOperator
 
 
 class DocumentExtraParams(BaseModel):
@@ -18,13 +21,13 @@ class DocumentExtraParams(BaseModel):
 
 class DocumentMessagePrototype(InputMediaPrototype, ABC):
     @abstractmethod
-    async def get_document(self, dialog, context: Optional[dict[str, Any]]) -> Union[str, InputFile]:
+    async def get_document(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> Union[str, InputFile]:
         pass
 
-    async def get_extra_params(self, dialog, context: Optional[dict[str, Any]]) -> DocumentExtraParams:
+    async def get_extra_params(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> DocumentExtraParams:
         return DocumentExtraParams()
 
-    async def get_input_media(self, dialog, context: Optional[dict[str, Any]], parse_mode=None) -> InputMediaDocument:
+    async def get_input_media(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]], parse_mode=None) -> InputMediaDocument:
         extra = await self.get_extra_params(dialog, context)
         text_content = await self.get_text_content(dialog, context)
         return InputMediaDocument(
@@ -39,7 +42,7 @@ class DocumentMessagePrototype(InputMediaPrototype, ABC):
     async def _do_send(
             self,
             bot: Bot,
-            dialog,
+            dialog: "Optional[DialogOperator]",
             context: Optional[dict[str, Any]],
             target: MessageTarget,
             instance: BotMessageInstance,

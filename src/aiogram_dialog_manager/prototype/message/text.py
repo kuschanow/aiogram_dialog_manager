@@ -1,5 +1,5 @@
 from abc import abstractmethod, ABC
-from typing import Optional, Any
+from typing import Optional, Any, TYPE_CHECKING
 
 from aiogram import Bot
 from aiogram.types import Message
@@ -7,13 +7,16 @@ from aiogram.types import Message
 from aiogram_dialog_manager.instance.message import BotMessageInstance, SendParams, MessageTarget
 from aiogram_dialog_manager.prototype.base import BaseMessagePrototype, TextContent, AnyReplyMarkup
 
+if TYPE_CHECKING:
+    from aiogram_dialog_manager.dialog_operator import DialogOperator
+
 
 class TextMessagePrototype(BaseMessagePrototype, ABC):
     @abstractmethod
-    async def get_text_content(self, dialog, context: Optional[dict[str, Any]]) -> TextContent:
+    async def get_text_content(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> TextContent:
         pass
 
-    async def get_instance(self, dialog, context: Optional[dict[str, Any]]) -> BotMessageInstance:
+    async def get_instance(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> BotMessageInstance:
         text_content = await self.get_text_content(dialog, context)
         return BotMessageInstance(
             type_name=self.name,
@@ -27,7 +30,7 @@ class TextMessagePrototype(BaseMessagePrototype, ABC):
     async def _do_send(
             self,
             bot: Bot,
-            dialog,
+            dialog: "Optional[DialogOperator]",
             context: Optional[dict[str, Any]],
             target: MessageTarget,
             instance: BotMessageInstance,

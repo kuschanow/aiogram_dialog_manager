@@ -1,7 +1,7 @@
 from abc import ABC, abstractmethod
 from typing import Optional, Any, ClassVar, TYPE_CHECKING
 
-from aiogram_dialog_manager.instance.button import ButtonInstance, ButtonAdditionalParameters, InlineButtonAdditionalParameters
+from aiogram_dialog_manager.instance.button import ButtonInstance, InlineButtonAdditionalParameters, CommonButtonAdditionalParameters
 
 if TYPE_CHECKING:
     from aiogram_dialog_manager.dialog_operator import DialogOperator
@@ -35,7 +35,7 @@ class ButtonPrototype(ABC):
     async def get_inline_additional_parameters(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> Optional[InlineButtonAdditionalParameters]:
         return None
 
-    async def get_common_additional_parameters(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> Optional[ButtonAdditionalParameters]:
+    async def get_common_additional_parameters(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> Optional[CommonButtonAdditionalParameters]:
         return None
 
     async def get_instance(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> ButtonInstance:

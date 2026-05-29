@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Any, Union
+from typing import Optional, Any, Union, TYPE_CHECKING
 
 from aiogram import Bot
 from aiogram.types import InputFile, Message
@@ -7,6 +7,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from aiogram_dialog_manager.instance.message import BotMessageInstance, SendParams, MessageTarget
 from aiogram_dialog_manager.prototype.base import BaseMessagePrototype, AnyReplyMarkup, _BASE_MEDIA_PARAMS
+
+if TYPE_CHECKING:
+    from aiogram_dialog_manager.dialog_operator import DialogOperator
 
 
 class VideoNoteExtraParams(BaseModel):
@@ -22,10 +25,10 @@ class VideoNoteMessagePrototype(BaseMessagePrototype, ABC):
     async def get_video_note(self, dialog, context: Optional[dict[str, Any]]) -> Union[str, InputFile]:
         pass
 
-    async def get_extra_params(self, dialog, context: Optional[dict[str, Any]]) -> VideoNoteExtraParams:
+    async def get_extra_params(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> VideoNoteExtraParams:
         return VideoNoteExtraParams()
 
-    async def get_instance(self, dialog, context: Optional[dict[str, Any]]) -> BotMessageInstance:
+    async def get_instance(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> BotMessageInstance:
         return BotMessageInstance(
             type_name=self.name,
             menu=await self.get_menu(dialog, context),
@@ -36,7 +39,7 @@ class VideoNoteMessagePrototype(BaseMessagePrototype, ABC):
     async def _do_send(
             self,
             bot: Bot,
-            dialog,
+            dialog: "Optional[DialogOperator]",
             context: Optional[dict[str, Any]],
             target: MessageTarget,
             instance: BotMessageInstance,

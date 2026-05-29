@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 from datetime import datetime, timedelta
-from typing import Optional, Any, Union
+from typing import Optional, Any, Union, TYPE_CHECKING
 
 from aiogram import Bot
 from aiogram.types import InputFile, InputMediaVideo, Message
@@ -8,6 +8,9 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from aiogram_dialog_manager.instance.message import BotMessageInstance, SendParams, MessageTarget
 from aiogram_dialog_manager.prototype.base import InputMediaPrototype, AnyReplyMarkup, _CAPTION_MEDIA_PARAMS
+
+if TYPE_CHECKING:
+    from aiogram_dialog_manager.dialog_operator import DialogOperator
 
 
 class VideoExtraParams(BaseModel):
@@ -26,13 +29,13 @@ class VideoExtraParams(BaseModel):
 
 class VideoMessagePrototype(InputMediaPrototype, ABC):
     @abstractmethod
-    async def get_video(self, dialog, context: Optional[dict[str, Any]]) -> Union[str, InputFile]:
+    async def get_video(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> Union[str, InputFile]:
         pass
 
-    async def get_extra_params(self, dialog, context: Optional[dict[str, Any]]) -> VideoExtraParams:
+    async def get_extra_params(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> VideoExtraParams:
         return VideoExtraParams()
 
-    async def get_input_media(self, dialog, context: Optional[dict[str, Any]], parse_mode=None) -> InputMediaVideo:
+    async def get_input_media(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]], parse_mode=None) -> InputMediaVideo:
         extra = await self.get_extra_params(dialog, context)
         text_content = await self.get_text_content(dialog, context)
         return InputMediaVideo(
@@ -54,7 +57,7 @@ class VideoMessagePrototype(InputMediaPrototype, ABC):
     async def _do_send(
             self,
             bot: Bot,
-            dialog,
+            dialog: "Optional[DialogOperator]",
             context: Optional[dict[str, Any]],
             target: MessageTarget,
             instance: BotMessageInstance,

@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Any, ClassVar, Union
+from typing import Optional, Any, ClassVar, Union, TYPE_CHECKING
 
 from aiogram import Bot
 from aiogram.types import (
@@ -11,6 +11,9 @@ from pydantic import BaseModel
 
 from aiogram_dialog_manager.instance.menu import AnyMenuInstance
 from aiogram_dialog_manager.instance.message import BotMessageInstance, SendParams, MessageTarget
+
+if TYPE_CHECKING:
+    from aiogram_dialog_manager.dialog_operator import DialogOperator
 
 AnyInputMedia = Union[InputMediaAnimation, InputMediaAudio, InputMediaDocument, InputMediaPhoto, InputMediaVideo]
 AnyReplyMarkup = Optional[InlineKeyboardMarkup | ReplyKeyboardMarkup | ReplyKeyboardRemove | ForceReply]
@@ -46,24 +49,24 @@ class BaseMessagePrototype(ABC):
     def name(self) -> str:
         return self.__class__._prototype_name
 
-    async def get_menu(self, dialog, context: Optional[dict[str, Any]]) -> Optional[AnyMenuInstance]:
+    async def get_menu(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> Optional[AnyMenuInstance]:
         return None
 
-    async def get_data(self, dialog, context: Optional[dict[str, Any]]) -> dict:
+    async def get_data(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> dict:
         return context or {}
 
-    async def get_send_params(self, dialog, context: Optional[dict[str, Any]]) -> SendParams:
+    async def get_send_params(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> SendParams:
         return SendParams()
 
     @abstractmethod
-    async def get_instance(self, dialog, context: Optional[dict[str, Any]]) -> BotMessageInstance:
+    async def get_instance(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> BotMessageInstance:
         pass
 
     @abstractmethod
     async def _do_send(
             self,
             bot: Bot,
-            dialog,
+            dialog: "Optional[DialogOperator]",
             context: Optional[dict[str, Any]],
             target: MessageTarget,
             instance: BotMessageInstance,
@@ -77,10 +80,10 @@ class BaseMessagePrototype(ABC):
 
 
 class BaseCaptionMediaPrototype(BaseMessagePrototype, ABC):
-    async def get_text_content(self, dialog, context: Optional[dict[str, Any]]) -> TextContent:
+    async def get_text_content(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> TextContent:
         return TextContent()
 
-    async def get_instance(self, dialog, context: Optional[dict[str, Any]]) -> BotMessageInstance:
+    async def get_instance(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> BotMessageInstance:
         text_content = await self.get_text_content(dialog, context)
         return BotMessageInstance(
             type_name=self.name,
@@ -94,5 +97,5 @@ class BaseCaptionMediaPrototype(BaseMessagePrototype, ABC):
 
 class InputMediaPrototype(BaseCaptionMediaPrototype):
     @abstractmethod
-    async def get_input_media(self, dialog, context: Optional[dict[str, Any]], parse_mode=None) -> AnyInputMedia:
+    async def get_input_media(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]], parse_mode=None) -> AnyInputMedia:
         ...
