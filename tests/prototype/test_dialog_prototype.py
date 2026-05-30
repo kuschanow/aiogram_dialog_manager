@@ -47,7 +47,7 @@ class TestDialogPrototype:
 
     async def test_get_config_returns_dialog_config(self):
         proto = StubDialog()
-        config = await proto.get_config()
+        config = await proto.get_config(context=None)
         assert isinstance(config, DialogConfig)
 
     async def test_get_config_base_implementation(self):
@@ -56,7 +56,7 @@ class TestDialogPrototype:
             def name(self):
                 return "bare"
 
-        config = await BareDialog().get_config()
+        config = await BareDialog().get_config(context=None)
         assert config.save_user_message_nodes is False
         assert config.save_bot_message_nodes is True
 

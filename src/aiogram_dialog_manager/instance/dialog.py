@@ -32,6 +32,10 @@ class TreeView(BaseDialogModel):
 class DialogConfig(BaseDialogModel):
     save_user_message_nodes: bool = Field(False, description="Whether to preserve dialog nodes when a user message is edited or deleted.")
     save_bot_message_nodes: bool = Field(True, description="Whether to preserve dialog nodes when a bot message is edited or deleted.")
+    allow_reply_lookup: bool = Field(False, description="Whether to allow resolving this dialog via reply to one of its bot messages.")
+    index_bot_messages: bool = Field(False, description="Whether to index bot messages so the dialog can be resolved via reply to them.")
+    index_user_messages: bool = Field(False, description="Whether to index user messages so the dialog can be resolved via reply to them.")
+    save_foreign_user_messages: bool = Field(False, description="Whether to save messages from users other than the dialog owner. Only effective when save_user_message_nodes is True.")
 
 
 class DialogInstance(BaseDialogModel):

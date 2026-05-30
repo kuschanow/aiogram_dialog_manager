@@ -124,12 +124,16 @@ class DialogManager:
         for node in instance.nodes.values():
             msg = node.message
             if isinstance(msg, BotMessageRecord):
+                if instance.config.allow_reply_lookup and instance.config.index_bot_messages:
+                    await self._storage.set_value_with_index(f"msg:{instance.chat_id}:{msg.telegram_message_instance.message_id}", instance.id, ttl=effective_ttl)
                 if isinstance(msg.menu, MenuInstance):
                     for row in msg.menu.buttons:
                         for btn in row:
                             await self._storage.set_value_with_index(f"button:{btn.id}", instance.id, ttl=effective_ttl)
                 if msg.telegram_message_instance.poll is not None:
                     await self._storage.set_value_with_index(f"poll:{msg.telegram_message_instance.poll.id}", instance.id, ttl=effective_ttl)
+            elif instance.config.allow_reply_lookup and instance.config.index_user_messages:
+                await self._storage.set_value_with_index(f"msg:{instance.chat_id}:{msg.telegram_message_instance.message_id}", instance.id, ttl=effective_ttl)
 
     async def delete(self, operator: DialogOperator) -> None:
         instance = operator.dialog
@@ -205,10 +209,19 @@ class DialogManager:
         if message.from_user:
             operator = await self.get_active_dialog(message.from_user.id, message.chat.id, bot)
 
+        if operator is None and message.reply_to_message:
+            dialog_id = await self._storage.get_string(f"msg:{message.chat.id}:{message.reply_to_message.message_id}")
+            if dialog_id:
+                operator = await self.get_dialog(dialog_id, bot)
+
         if operator is not None and operator.dialog.config.save_user_message_nodes:
-            filter_fn = self._user_message_filters.get(operator.dialog.type_name)
-            if filter_fn is None or filter_fn(message):
-                operator.append_user_message(message)
+            config = operator.dialog.config
+            is_owner = message.from_user and message.from_user.id == operator.dialog.user_id
+            is_foreign = message.from_user and message.from_user.id != operator.dialog.user_id
+            if is_owner or (is_foreign and config.save_foreign_user_messages):
+                filter_fn = self._user_message_filters.get(operator.dialog.type_name)
+                if filter_fn is None or filter_fn(message):
+                    operator.append_user_message(message)
 
         data["dialog"] = operator
         data["dialog_manager"] = self

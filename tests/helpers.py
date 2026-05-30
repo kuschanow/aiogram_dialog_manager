@@ -1,5 +1,7 @@
 """Concrete implementations of abstract prototypes for use in tests."""
 
+from typing import Optional
+
 from aiogram.types import InputMediaPhoto
 
 from aiogram_dialog_manager.instance.button import ButtonInstance
@@ -53,17 +55,37 @@ class StubMenu(MenuPrototype):
 
 
 class StubDialog(DialogPrototype):
-    def __init__(self, name="dialog", save_bot=True, save_user=True):
+    def __init__(
+        self,
+        name="dialog",
+        save_bot=True,
+        save_user=True,
+        allow_reply_lookup=False,
+        index_bot_messages=False,
+        index_user_messages=False,
+        save_foreign_user_messages=False,
+    ):
         self._name = name
         self._save_bot = save_bot
         self._save_user = save_user
+        self._allow_reply_lookup = allow_reply_lookup
+        self._index_bot_messages = index_bot_messages
+        self._index_user_messages = index_user_messages
+        self._save_foreign_user_messages = save_foreign_user_messages
 
     @property
     def name(self) -> str:
         return self._name
 
-    async def get_config(self) -> DialogConfig:
-        return DialogConfig(save_bot_message_nodes=self._save_bot, save_user_message_nodes=self._save_user)
+    async def get_config(self, context: Optional[dict] = None) -> DialogConfig:
+        return DialogConfig(
+            save_bot_message_nodes=self._save_bot,
+            save_user_message_nodes=self._save_user,
+            allow_reply_lookup=self._allow_reply_lookup,
+            index_bot_messages=self._index_bot_messages,
+            index_user_messages=self._index_user_messages,
+            save_foreign_user_messages=self._save_foreign_user_messages,
+        )
 
 
 class StubText(TextMessagePrototype):

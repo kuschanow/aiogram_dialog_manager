@@ -2,7 +2,7 @@ from aiogram_dialog_manager.dialog_manager import DialogManager
 from aiogram_dialog_manager.dialog_operator import DialogOperator
 from aiogram_dialog_manager.instance.button import ButtonInstance
 from aiogram_dialog_manager.instance.menu import MenuInstance
-from aiogram_dialog_manager.instance.message import BotMessageRecord
+from aiogram_dialog_manager.instance.message import BotMessageRecord, UserMessageRecord
 from aiogram_dialog_manager.storage.memory import MemoryStorage
 from tests.helpers import StubDialog
 
@@ -85,3 +85,82 @@ class TestDialogManagerCrud:
         await manager.set_active_dialog(op2)
         await manager.delete(op1)
         assert await storage.exists("active:1:2")
+
+
+class TestMessageIndexing:
+    async def test_save_indexes_bot_message_when_enabled(self, mock_bot, tg_message):
+        manager, storage = make_manager()
+        proto = StubDialog(allow_reply_lookup=True, index_bot_messages=True)
+        op = await manager.create_dialog(proto, 1, 100, mock_bot)
+
+        record = BotMessageRecord(type_name="t", telegram_message_instance=tg_message)
+        op.dialog.append_message(record)
+        await manager.save(op)
+
+        assert await storage.get_string(f"msg:100:{tg_message.message_id}") == op.dialog.id
+
+    async def test_save_does_not_index_bot_message_when_lookup_disabled(self, mock_bot, tg_message):
+        manager, storage = make_manager()
+        proto = StubDialog(allow_reply_lookup=False, index_bot_messages=True)
+        op = await manager.create_dialog(proto, 1, 100, mock_bot)
+
+        record = BotMessageRecord(type_name="t", telegram_message_instance=tg_message)
+        op.dialog.append_message(record)
+        await manager.save(op)
+
+        assert await storage.get_string(f"msg:100:{tg_message.message_id}") is None
+
+    async def test_save_does_not_index_bot_message_when_index_disabled(self, mock_bot, tg_message):
+        manager, storage = make_manager()
+        proto = StubDialog(allow_reply_lookup=True, index_bot_messages=False)
+        op = await manager.create_dialog(proto, 1, 100, mock_bot)
+
+        record = BotMessageRecord(type_name="t", telegram_message_instance=tg_message)
+        op.dialog.append_message(record)
+        await manager.save(op)
+
+        assert await storage.get_string(f"msg:100:{tg_message.message_id}") is None
+
+    async def test_save_indexes_user_message_when_enabled(self, mock_bot, tg_message):
+        manager, storage = make_manager()
+        proto = StubDialog(allow_reply_lookup=True, index_user_messages=True)
+        op = await manager.create_dialog(proto, 1, 100, mock_bot)
+
+        op.append_user_message(tg_message)
+        await manager.save(op)
+
+        assert await storage.get_string(f"msg:100:{tg_message.message_id}") == op.dialog.id
+
+    async def test_save_does_not_index_user_message_when_lookup_disabled(self, mock_bot, tg_message):
+        manager, storage = make_manager()
+        proto = StubDialog(allow_reply_lookup=False, index_user_messages=True)
+        op = await manager.create_dialog(proto, 1, 100, mock_bot)
+
+        op.append_user_message(tg_message)
+        await manager.save(op)
+
+        assert await storage.get_string(f"msg:100:{tg_message.message_id}") is None
+
+    async def test_save_does_not_index_user_message_when_index_disabled(self, mock_bot, tg_message):
+        manager, storage = make_manager()
+        proto = StubDialog(allow_reply_lookup=True, index_user_messages=False)
+        op = await manager.create_dialog(proto, 1, 100, mock_bot)
+
+        op.append_user_message(tg_message)
+        await manager.save(op)
+
+        assert await storage.get_string(f"msg:100:{tg_message.message_id}") is None
+
+    async def test_delete_removes_message_indexes(self, mock_bot, tg_message):
+        manager, storage = make_manager()
+        proto = StubDialog(allow_reply_lookup=True, index_bot_messages=True, index_user_messages=True)
+        op = await manager.create_dialog(proto, 1, 100, mock_bot)
+
+        bot_msg = BotMessageRecord(type_name="t", telegram_message_instance=tg_message)
+        op.dialog.append_message(bot_msg)
+        op.append_user_message(tg_message)
+        await manager.save(op)
+
+        await manager.delete(op)
+
+        assert await storage.get_string(f"msg:100:{tg_message.message_id}") is None

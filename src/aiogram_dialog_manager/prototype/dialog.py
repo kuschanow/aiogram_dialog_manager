@@ -26,12 +26,12 @@ class DialogPrototype(ABC):
     async def get_data(self, context: Optional[dict[str, Any]]) -> dict:
         return context or {}
 
-    async def get_config(self) -> DialogConfig:
+    async def get_config(self, context: Optional[dict[str, Any]]) -> DialogConfig:
         return DialogConfig()
 
     async def get_instance(self, user_id: int, chat_id: int, context: Optional[dict[str, Any]] = None) -> DialogInstance:
         data = await self.get_data(context) or {}
-        config = await self.get_config()
+        config = await self.get_config(context)
         snap_id = uuid.uuid4().hex
         return DialogInstance(
             type_name=self.name,

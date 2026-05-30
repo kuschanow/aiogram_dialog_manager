@@ -252,7 +252,7 @@ Whether messages are saved automatically is controlled by `DialogConfig`, which 
 from aiogram_dialog_manager.instance import DialogConfig
 
 class MyDialog(DialogPrototype, type_name="my_dialog"):
-    async def get_config(self) -> DialogConfig:
+    async def get_config(self, context) -> DialogConfig:
         return DialogConfig(
             save_bot_message_nodes=True,    # default — send_* auto-appends to tree
             save_user_message_nodes=False,  # default — user messages not auto-appended
@@ -278,6 +278,49 @@ manager.set_user_message_filter(
 ```
 
 The filter receives the `Message` object and returns `True` to save or `False` to skip. One filter per dialog type; if no filter is registered for a type, all messages are saved.
+
+**Reply-based dialog lookup**
+
+By default the `Message` middleware resolves the dialog only for the dialog owner (via the active dialog pointer). You can optionally enable reply-based lookup so that any user who replies to a message belonging to a dialog receives that dialog in `data["dialog"]`.
+
+Enable it via three flags in `DialogConfig`:
+
+| Flag | Default | Description |
+|------|---------|-------------|
+| `allow_reply_lookup` | `False` | Master switch — enables reply-based lookup |
+| `index_bot_messages` | `False` | Index bot messages so replies to them resolve the dialog |
+| `index_user_messages` | `False` | Index user messages so replies to them resolve the dialog |
+
+```python
+class MyDialog(DialogPrototype, type_name="my_dialog"):
+    async def get_config(self, context) -> DialogConfig:
+        return DialogConfig(
+            allow_reply_lookup=True,
+            index_bot_messages=True,   # reply to any bot message → this dialog
+            index_user_messages=False, # user messages not indexed
+        )
+```
+
+Indexes are built automatically on every `save()` call and cleaned up automatically on `delete()`.
+
+When `operator is None` (the sender has no active dialog) but the incoming message is a reply, the middleware looks up `reply_to_message.message_id` in the index. If found, the owning dialog is returned as `data["dialog"]`. If the sender already has an active dialog, that takes priority and the reply index is not consulted.
+
+**Saving messages from non-owner users**
+
+When reply lookup is enabled you may also want to record the replies of non-owner users as nodes in the dialog tree. Set `save_foreign_user_messages=True` — it works only in combination with `save_user_message_nodes=True`:
+
+```python
+class MyDialog(DialogPrototype, type_name="my_dialog"):
+    async def get_config(self, context) -> DialogConfig:
+        return DialogConfig(
+            save_user_message_nodes=True,
+            allow_reply_lookup=True,
+            index_bot_messages=True,
+            save_foreign_user_messages=True,  # save replies from any user
+        )
+```
+
+Without this flag only the dialog owner's messages are appended to the tree even when another user's reply resolves the dialog.
 
 ### Node deletion
 
@@ -436,7 +479,7 @@ DialogAccessFilter()                          # ownership check
 
 | Key | Type | Description |
 |-----|------|-------------|
-| `dialog` | `DialogOperator \| None` | Active dialog for this user+chat, or `None` |
+| `dialog` | `DialogOperator \| None` | Active dialog for this user+chat, or dialog resolved via reply (if `allow_reply_lookup` is enabled), or `None` |
 | `dialog_manager` | `DialogManager` | The manager instance |
 
 #### On `EditedMessage`
