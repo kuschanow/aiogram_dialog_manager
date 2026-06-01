@@ -47,6 +47,42 @@ class TestDialogManagerCrud:
         result = await manager.get_active_dialog(99, 99, mock_bot)
         assert result is None
 
+    async def test_set_active_dialog_by_values(self, mock_bot):
+        manager, _ = make_manager()
+        proto = StubDialog()
+        op = await manager.create_dialog(proto, 10, 20, mock_bot)
+        await manager.set_active_dialog(op.dialog.id, user_id=10, chat_id=20)
+        active = await manager.get_active_dialog(10, 20, mock_bot)
+        assert active is not None
+        assert active.dialog.id == op.dialog.id
+
+    async def test_set_active_dialog_by_values_overwrites_previous(self, mock_bot):
+        manager, _ = make_manager()
+        proto = StubDialog()
+        op1 = await manager.create_dialog(proto, 10, 20, mock_bot)
+        op2 = await manager.create_dialog(proto, 10, 20, mock_bot)
+        await manager.set_active_dialog(op1)
+        await manager.set_active_dialog(op2.dialog.id, user_id=10, chat_id=20)
+        active = await manager.get_active_dialog(10, 20, mock_bot)
+        assert active is not None
+        assert active.dialog.id == op2.dialog.id
+
+    async def test_set_active_dialog_by_values_raises_without_user_id(self, mock_bot):
+        import pytest
+        manager, _ = make_manager()
+        proto = StubDialog()
+        op = await manager.create_dialog(proto, 10, 20, mock_bot)
+        with pytest.raises(ValueError):
+            await manager.set_active_dialog(op.dialog.id, chat_id=20)
+
+    async def test_set_active_dialog_by_values_raises_without_chat_id(self, mock_bot):
+        import pytest
+        manager, _ = make_manager()
+        proto = StubDialog()
+        op = await manager.create_dialog(proto, 10, 20, mock_bot)
+        with pytest.raises(ValueError):
+            await manager.set_active_dialog(op.dialog.id, user_id=10)
+
     async def test_save_indexes_buttons(self, mock_bot, tg_message):
         manager, storage = make_manager()
         proto = StubDialog()

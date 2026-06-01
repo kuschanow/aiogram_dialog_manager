@@ -174,7 +174,7 @@ The object injected into handlers as `dialog`. Provides:
 | Method | Description |
 |--------|-------------|
 | `create_dialog(proto, user_id, chat_id, bot, context, ttl)` | Create a new dialog instance |
-| `set_active_dialog(operator)` | Mark a dialog as active for its user+chat |
+| `set_active_dialog(dialog, user_id, chat_id)` | Mark a dialog as active for its user+chat |
 | `get_active_dialog(user_id, chat_id, bot)` | Fetch the active dialog for a user+chat |
 | `get_dialog(dialog_id, bot)` | Fetch any dialog by ID |
 | `save(operator, ttl)` | Persist dialog state and refresh button index |
@@ -182,7 +182,6 @@ The object injected into handlers as `dialog`. Provides:
 | `save_standalone_menu(instance, ttl)` | Register a menu instance in storage and index its buttons |
 | `delete_standalone_menu(menu)` | Delete a standalone menu by instance or ID and remove its button index entries |
 | `cleanup_orphaned()` | Delete dialogs with no active pointer and standalone menus with no live buttons; returns count |
-| `set_active_dialog(operator)` | Mark a dialog as active for its user+chat |
 | `set_user_message_filter(dialog, filter_fn)` | Register a per-dialog-type message filter |
 | `set_dead_button_handler(handler)` | Register a callback for button presses that resolve to nothing |
 | `setup(dp)` | Register middleware on all supported event types |
@@ -195,6 +194,14 @@ Each user+chat pair has at most one **active dialog** — the dialog injected in
 op = await manager.create_dialog(proto, user_id, chat_id, bot)
 await manager.set_active_dialog(op)
 ```
+
+You can also set the active dialog by raw values if you already know the IDs and do not need to load the full operator:
+
+```python
+await manager.set_active_dialog(dialog_id, user_id=user_id, chat_id=chat_id)
+```
+
+`user_id` and `chat_id` are required when passing a string dialog ID.
 
 Creating a new dialog does not automatically replace the active one. Call `set_active_dialog` whenever you want to switch.
 

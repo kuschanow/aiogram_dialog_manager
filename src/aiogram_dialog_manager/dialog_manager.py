@@ -110,9 +110,24 @@ class DialogManager:
             return None
         return await self.get_dialog(dialog_id, bot)
 
-    async def set_active_dialog(self, operator: DialogOperator) -> None:
-        instance = operator.dialog
-        await self._storage.set(f"active:{instance.user_id}:{instance.chat_id}", instance.id)
+    async def set_active_dialog(
+            self,
+            dialog: "DialogOperator | str",
+            user_id: Optional[int] = None,
+            chat_id: Optional[int] = None,
+    ) -> None:
+        if isinstance(dialog, DialogOperator):
+            instance = dialog.dialog
+            effective_user_id = instance.user_id
+            effective_chat_id = instance.chat_id
+            dialog_id = instance.id
+        else:
+            if user_id is None or chat_id is None:
+                raise ValueError("user_id and chat_id are required when dialog is a string ID")
+            effective_user_id = user_id
+            effective_chat_id = chat_id
+            dialog_id = dialog
+        await self._storage.set(f"active:{effective_user_id}:{effective_chat_id}", dialog_id)
 
     async def save(self, operator: DialogOperator, ttl: Optional[int] = _UNSET) -> None:
         instance = operator.dialog
