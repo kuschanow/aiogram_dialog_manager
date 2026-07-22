@@ -17,7 +17,7 @@ class MenuPrototype(ABC):
             if type_name in MenuPrototype._registry:
                 existing = MenuPrototype._registry[type_name]
                 raise ValueError(
-                    f"MenuPrototype name '{type_name}' is already registered by {existing.__qualname__}"
+                    f"MenuPrototype name '{type_name}' is already registered by {getattr(existing, '__qualname__', type(existing).__qualname__)}"
                 )
             MenuPrototype._registry[type_name] = cls
             cls._prototype_name = type_name
