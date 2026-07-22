@@ -16,7 +16,7 @@ class ButtonPrototype(ABC):
             if type_name in ButtonPrototype._registry:
                 existing = ButtonPrototype._registry[type_name]
                 raise ValueError(
-                    f"ButtonPrototype name '{type_name}' is already registered by {existing.__qualname__}"
+                    f"ButtonPrototype name '{type_name}' is already registered by {getattr(existing, '__qualname__', type(existing).__qualname__)}"
                 )
             ButtonPrototype._registry[type_name] = cls
             cls._prototype_name = type_name
