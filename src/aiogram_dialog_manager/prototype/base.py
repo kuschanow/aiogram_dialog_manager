@@ -40,7 +40,7 @@ class BaseMessagePrototype(ABC):
             if type_name in BaseMessagePrototype._registry:
                 existing = BaseMessagePrototype._registry[type_name]
                 raise ValueError(
-                    f"BaseMessagePrototype name '{type_name}' is already registered by {existing.__qualname__}"
+                    f"BaseMessagePrototype name '{type_name}' is already registered by {getattr(existing, '__qualname__', type(existing).__qualname__)}"
                 )
             BaseMessagePrototype._registry[type_name] = cls
             cls._prototype_name = type_name

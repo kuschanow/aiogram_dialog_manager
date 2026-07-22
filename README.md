@@ -12,6 +12,7 @@ A library for building structured, stateful dialog flows in [aiogram 3](https://
 - **Pluggable storage** — `MemoryStorage` (in-process) and `RedisStorage` out of the box; custom backends via `BaseStorage`
 - **TTL support** — automatic expiry of dialogs and standalone menus in storage
 - **Typed filters** — `DialogFilter`, `ButtonFilter`, `MenuFilter`, `MessageFilter`, `DialogAccessFilter` for precise handler routing
+- **Declarative dialog specs** — describe windows, texts and menus as a JSON-serializable model or via the Python builder instead of writing prototype classes; see [Declarative dialog specs](#declarative-dialog-specs)
 
 ## Installation
 
@@ -564,6 +565,140 @@ Media types (`Photo`, `Document`, `Video`, `Audio`, `Animation`) also implement 
 
 ---
 
+## Declarative dialog specs
+
+An alternative to writing prototype classes: describe a whole dialog — windows, texts, menus, buttons — as data. The model is **fully serializable** (store it in a DB or file, load it at runtime) and compiles into regular prototypes, so the entire existing runtime (instances, storage, history, filters, `send_*`) works unchanged.
+
+The spec covers **layout only**. Behavior stays in ordinary aiogram handlers with filters: a handler shrinks to "update `dialog.data` → re-render the window", while all message/menu assembly lives on the model.
+
+### Quick example
+
+```python
+from aiogram_dialog_manager.spec import compile_dialog
+from aiogram_dialog_manager.spec import builder as b
+
+spec = b.dialog(
+    "settings",
+    windows={
+        "main": b.window(
+            b.text("Hello, ", b.data_.name | "stranger", "!"),
+            menu=b.menu(
+                b.row(b.button("save", b.t("save_btn"))),
+                # one button per player, each carrying its own payload
+                b.foreach(b.data_.players, b.row(
+                    b.button("player", b.item_.name, data={"player_id": b.item_.id}),
+                )),
+                b.if_(b.data_.is_admin, b.row(b.button("admin", "Admin panel"))),
+            ),
+        ),
+    },
+)
+
+dialog_model = compile_dialog(spec, register=True)
+```
+
+The compiled model exposes **typed handles** — a typo fails at startup, not at runtime:
+
+```python
+@dp.callback_query(ButtonFilter(dialog_model.windows.main.buttons.player))
+async def on_player(callback, dialog: DialogOperator, button: ButtonInstance):
+    player_id = button.data["player_id"]   # payload evaluated per button at render time
+    ...
+    await dialog.send_message(dialog_model.windows.main.message, target)
+```
+
+Prototypes get deterministic names in the shared registries — `settings:main` (message), `settings:main:menu`, `settings:main:save` (buttons) — so string-based filters (`ButtonFilter("settings:main:save")`) and storage round-trips keep working across restarts. Re-compiling and re-registering the same dialog **replaces** the spec entries (hot-reload, loading from a DB); colliding with a Python prototype class still raises.
+
+### Canonical JSON form
+
+The builder is a thin layer: everything compiles to a JSON-compatible dict (`spec.to_dict()` / `DialogSpec.from_dict(...)`), with `version` at the root:
+
+```jsonc
+{
+  "version": 1,
+  "name": "settings",
+  "windows": {
+    "main": {
+      "content": {"type": "text", "text": ["Hello, ", {"type": "path", "path": "data.name"}]},
+      "menu": {"rows": [[{"type": "button", "name": "save", "text": "Save"}]]}
+    }
+  }
+}
+```
+
+### Expressions
+
+Any leaf field (button text, url, caption, payload values, `chunk` size, …) accepts a literal **or** an expression node. Expressions are JSON trees; the builder writes them with plain Python operators:
+
+```python
+b.data_.page > 0                    # {"type": "op", "op": ">", "args": [{"type": "path", ...}, 0]}
+b.data_.name | "anonymous"          # or with Python semantics (returns operand)
+b.fn("len", b.data_.players)        # function call from the open registry
+b.provider("top_players", limit=5)  # escape hatch: named Python provider (may hit DB/network)
+b.t("welcome_text")                 # translatable string (see i18n below)
+```
+
+- Namespaces are explicit: `data.*` (persistent `dialog.data`), `ctx.*` (render context), `item`/`index` inside `foreach`.
+- A missing path evaluates to `null`; type errors and division by zero raise (a silent `null` would hide script bugs).
+- Starter functions: `len, str, int, float, bool, round, abs, min, max, sum, join, split, upper, lower, strip, format, default, range, sorted, keys, values` — register your own pure functions in a `FunctionRegistry`.
+
+### Structural constructs
+
+| Construct | Purpose |
+|-----------|---------|
+| `foreach` | multiply a node over a list (`item`/`index` in scope); parameterizes button payloads |
+| `if` / `else` | conditional inclusion of a button, row, text fragment or menu part |
+| `chunk` | lay out a flat button list into rows of N |
+| `slice` | list slice with expression bounds; with `foreach` covers pagination |
+| `def` / `ref` | named reusable fragments inside the model (a shared "Back" button, common footer) |
+| `provider` | named Python provider from the registry — the only door to external data |
+| `t` | translatable string |
+
+Rows that render empty are dropped; a menu whose rows are all empty produces no keyboard at all.
+
+**Pagination widget** — a builder-level macro that expands into `slice` + `foreach` + a nav row (the serialized model contains only core primitives):
+
+```python
+menu = b.menu(*b.paginator(
+    "pl",
+    over=b.data_.players,
+    page=b.data_.page,
+    item=b.button("player", b.item_.name, data={"pid": b.item_.id}),
+    page_size=5, per_row=1,
+))
+# nav buttons are named pl_prev / pl_next and carry {"page": <target>} in payload
+```
+
+### Localization
+
+`b.t("msgid")` marks a translatable string. Pass a `translator(msgid, locale) -> str` hook to `compile_dialog`; the locale comes from the render context (`ctx.locale`). Without a translator the msgid is returned as is — no translation library is bundled, only the hook.
+
+```python
+compile_dialog(spec, translator=my_gettext_hook)
+```
+
+### Extensibility
+
+Four open registries: message/menu/button prototypes (existing), expression **functions**, **providers**, and **node kinds**. All standard nodes — including `t` — are implemented through the same public node registry you would use for your own:
+
+```python
+from aiogram_dialog_manager.spec import EvaluableNode, node_registry
+from typing import Literal
+
+@node_registry.register
+class MyNode(EvaluableNode):
+    type: Literal["my_node"] = "my_node"
+    ...
+    async def evaluate(self, scope):
+        ...
+```
+
+Mixing is free: within one dialog some windows can come from a spec and others from Python prototype classes — both live in the same registries.
+
+Window content types shipped in the first iteration: `text`, `photo`, `document`, `media_group`. A textual DSL (compact syntax compiled into the same model) is planned as phase 2 — see `docs/dialog_spec_design.md` and `docs/dialog_spec_text_syntax.md`.
+
+---
+
 ## Project Layout
 
 ```
@@ -578,6 +713,12 @@ src/aiogram_dialog_manager/
 │   ├── dialog.py
 │   ├── menu.py
 │   └── message/                # 13 message prototype classes
+├── spec/                       # Declarative dialog specs
+│   ├── model.py                # DialogSpec / WindowSpec / MenuSpec (JSON-serializable core)
+│   ├── nodes.py                # expression & structural nodes (path, op, if, foreach, …)
+│   ├── content.py              # window content kinds + interpreting prototypes
+│   ├── compile.py              # compile_dialog, typed handles, registration
+│   └── builder.py              # Python builder + widgets (paginator)
 └── storage/                    # BaseStorage, MemoryStorage, RedisStorage
 ```
 
