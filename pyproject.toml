@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aiogram_dialog_manager"
-version = "2.7.0"
+version = "2.8.0"
 authors = [
     { name = "kuschanow", email = "kuschanow@gmail.com" }
 ]
@@ -39,6 +39,9 @@ exclude_lines = [
     "@abstractmethod",
     "^\\s*\\.\\.\\.\\s*$",
 ]
+
+[project.entry-points."babel.extractors"]
+aiogram_dialog_spec = "aiogram_dialog_manager.spec.babel:extract_spec"
 
 [project.urls]
 Homepage = "https://github.com/kuschanow/aiogram_dialog_manager"

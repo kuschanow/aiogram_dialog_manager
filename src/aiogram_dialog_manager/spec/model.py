@@ -5,13 +5,14 @@ both the Python builder and the (phase 2) textual DSL compile into. The root
 carries ``version`` from day one: the format will live in storages for years
 and migrations are impossible without it.
 """
-from typing import Annotated, Any, Literal, Optional
+from typing import Annotated, Any, Literal, Optional, Union
 
 from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, Field, field_validator
 
 from aiogram_dialog_manager.spec.content import BaseContentSpec
-from aiogram_dialog_manager.spec.node import Value, resolve_value
+from aiogram_dialog_manager.spec.node import SpecNode, Value, node_registry, resolve_value
 from aiogram_dialog_manager.spec.nodes import IDENTIFIER_PATTERN
+from aiogram_dialog_manager.spec.use import UseMenuNode
 
 SPEC_VERSION = 1
 
@@ -27,6 +28,18 @@ def _check_content(value: Any) -> BaseContentSpec:
 
 
 ContentValue = Annotated[Any, BeforeValidator(resolve_value), AfterValidator(_check_content)]
+
+
+def _resolve_menu(value: Any) -> Any:
+    if hasattr(value, "__spec_node__"):
+        value = value.__spec_node__()
+    if isinstance(value, dict) and "type" in value:
+        value = node_registry.create(value)
+    if isinstance(value, SpecNode) and not isinstance(value, UseMenuNode):
+        raise ValueError(
+            f"Window menu must be a menu spec or a 'use_menu' node, got node of type '{value.type}'"
+        )
+    return value
 
 
 class MenuSpec(BaseModel):
@@ -54,12 +67,19 @@ class MenuSpec(BaseModel):
 
 
 class WindowSpec(BaseModel):
-    """A single window: what to show (content) and what to offer (menu)."""
+    """A single window: what to show (content) and what to offer (menu).
+
+    ``data`` holds the window's default message data (values are expressions);
+    the render context is merged on top of it. ``menu`` is either an inline
+    :class:`MenuSpec` or a ``use_menu`` node delegating to an existing
+    registered menu prototype.
+    """
 
     model_config = ConfigDict(extra="forbid")
 
     content: ContentValue
-    menu: Optional[MenuSpec] = None
+    menu: Annotated[Optional[Union[UseMenuNode, MenuSpec]], BeforeValidator(_resolve_menu)] = None
+    data: Optional[dict[str, Value]] = None
 
 
 class DialogSpec(BaseModel):
@@ -76,6 +96,10 @@ class DialogSpec(BaseModel):
     name: Identifier
     windows: dict[Identifier, WindowSpec] = Field(..., min_length=1)
     defs: dict[Identifier, Value] = Field(default_factory=dict)
+    #: When set, every spec window stamps its own name into the message data
+    #: under this key — the "window name is the state" pattern of wizards
+    #: (``MessageFilter`` state routing without repeating it in every send).
+    window_name_key: Optional[str] = Field(default=None, min_length=1)
 
     @field_validator("version")
     @classmethod

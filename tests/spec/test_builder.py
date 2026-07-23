@@ -230,3 +230,36 @@ async def test_readme_style_example_renders(make_scope):
     assert content.text == "Hello, anonymous!"
     rows = await compiled.windows.main.menu.get_buttons(dialog, None)
     assert [[button.text for button in row] for row in rows] == [["Сохранить"], ["A"], ["B"]]
+
+
+class TestUseAndWindowDataHelpers:
+    def test_use_button(self):
+        node_ = b.use_button("cancel_btn", context={"page": b.data_.page})
+        assert node_.type == "use_button"
+        assert node_.name == "cancel_btn"
+        assert node_.context["page"].path == "data.page"
+
+    def test_use_button_without_context(self):
+        assert b.use_button("cancel_btn").context is None
+
+    def test_use_menu_in_window(self):
+        window = b.window(b.text("hi"), menu=b.use_menu("shared_menu", context={"resize": True}))
+        assert window.menu.type == "use_menu"
+        assert window.menu.context == {"resize": True}
+
+    def test_use_message_in_window(self):
+        window = b.window(b.use_message("error_msg"))
+        assert window.content.type == "use_message"
+        assert window.content.name == "error_msg"
+
+    def test_window_data_and_dialog_window_name_key(self):
+        spec = b.dialog(
+            "wizard",
+            window_name_key="state",
+            windows={"main": b.window(b.text("hi"), data={"page": b.data_.page})},
+        )
+        assert spec.window_name_key == "state"
+        assert spec.windows["main"].data["page"].path == "data.page"
+        dumped = spec.to_dict()
+        assert dumped["window_name_key"] == "state"
+        assert dumped["windows"]["main"]["data"]["page"] == {"type": "path", "path": "data.page"}

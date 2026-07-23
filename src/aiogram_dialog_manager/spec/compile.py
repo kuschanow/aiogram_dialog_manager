@@ -25,10 +25,11 @@ from aiogram_dialog_manager.spec.functions import create_default_function_regist
 from aiogram_dialog_manager.spec.model import DialogSpec, WindowSpec
 from aiogram_dialog_manager.spec.node import SpecNode
 from aiogram_dialog_manager.spec.nodes import ButtonSpec, RefNode
-from aiogram_dialog_manager.spec.prototypes import SpecButtonPrototype, SpecMenuPrototype
+from aiogram_dialog_manager.spec.prototypes import SpecButtonPrototype, SpecMenuPrototype, SpecPrototypeMixin
 from aiogram_dialog_manager.spec.registration import register_spec_prototype
 from aiogram_dialog_manager.spec.registries import FunctionRegistry, ProviderRegistry
 from aiogram_dialog_manager.spec.scope import SpecRuntime, Translator
+from aiogram_dialog_manager.spec.use import UseMenuNode, UseMenuPrototype, UseMessageContentSpec
 
 
 class SpecDialogPrototype(DialogPrototype):
@@ -71,7 +72,7 @@ class Namespace:
 class CompiledWindow:
     name: str
     message: BaseMessagePrototype
-    menu: Optional[SpecMenuPrototype]
+    menu: Optional[MenuPrototype]
     buttons: Namespace
 
 
@@ -159,11 +160,22 @@ class CompiledDialog:
 
     def _compile_window(self, window_name: str, window: WindowSpec) -> CompiledWindow:
         message_name = f"{self._spec.name}:{window_name}"
+        if isinstance(window.content, UseMessageContentSpec):
+            # The used prototype controls its own menu and data — a window
+            # declaring either alongside would silently lose them.
+            for conflicting, present in (("menu", window.menu is not None), ("data", window.data is not None)):
+                if present:
+                    raise SpecValidationError(
+                        f"Window '{window_name}' uses message prototype '{window.content.name}', "
+                        f"which controls its own {conflicting}; remove the window {conflicting}"
+                    )
         menu_prototype = None
-        if window.menu is not None:
+        if isinstance(window.menu, UseMenuNode):
+            menu_prototype = UseMenuPrototype(window.menu, self._runtime, window_name)
+        elif window.menu is not None:
             menu_prototype = SpecMenuPrototype(f"{message_name}:menu", window.menu, self._runtime, window_name)
         message_prototype = window.content.create_prototype(
-            message_name, menu_prototype, self._runtime, window_name,
+            message_name, menu_prototype, self._runtime, window_name, window.data,
         )
         buttons = Namespace({
             button_name: SpecButtonPrototype(
@@ -191,12 +203,14 @@ class CompiledDialog:
 
     def register(self) -> "CompiledDialog":
         """Register every prototype in the shared registries (replace semantics
-        for spec entries only)."""
+        for spec entries only). ``use``'d prototypes are already registered
+        under their own names and are skipped."""
         register_spec_prototype(DialogPrototype, self._dialog_prototype.name, self._dialog_prototype)
         for window_name in self._windows:
             window: CompiledWindow = self._windows[window_name]
-            register_spec_prototype(BaseMessagePrototype, window.message.name, window.message)
-            if window.menu is not None:
+            if isinstance(window.message, SpecPrototypeMixin):
+                register_spec_prototype(BaseMessagePrototype, window.message.name, window.message)
+            if isinstance(window.menu, SpecMenuPrototype):
                 register_spec_prototype(MenuPrototype, window.menu.name, window.menu)
             for button_name in window.buttons:
                 button = window.buttons[button_name]
@@ -223,6 +237,7 @@ def compile_dialog(
         functions=functions if functions is not None else create_default_function_registry(),
         providers=providers if providers is not None else ProviderRegistry(),
         translator=translator,
+        window_name_key=spec.window_name_key,
     )
     compiled = CompiledDialog(spec, runtime)
     if register:

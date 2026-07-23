@@ -34,6 +34,9 @@ class SpecRuntime:
     functions: FunctionRegistry = field(default_factory=FunctionRegistry)
     providers: ProviderRegistry = field(default_factory=ProviderRegistry)
     translator: Optional[Translator] = None
+    #: When set, every spec window stamps its own name into the message data
+    #: under this key (the "window name is the state" pattern of wizards).
+    window_name_key: Optional[str] = None
 
 
 @dataclass(frozen=True)

@@ -71,6 +71,30 @@ class TestWindowSpec:
         with pytest.raises(ValidationError):
             WindowSpec(content="just text")
 
+    def test_data_values_accept_expressions(self):
+        window = WindowSpec(
+            content={"type": "text", "text": "x"},
+            data={"state": "main", "page": {"type": "path", "path": "data.page"}},
+        )
+        assert window.data["state"] == "main"
+        assert window.data["page"].path == "data.page"
+
+    def test_menu_accepts_builder_wrapped_use_node(self):
+        from aiogram_dialog_manager.spec import UseMenuNode
+        from aiogram_dialog_manager.spec import builder as b
+
+        window = WindowSpec(
+            content={"type": "text", "text": "x"},
+            menu=b.as_expr(UseMenuNode(name="shared_menu")),
+        )
+        assert isinstance(window.menu, UseMenuNode)
+
+    def test_data_roundtrips(self):
+        payload = make_minimal_dict()
+        payload["windows"]["main"]["data"] = {"state": "main"}
+        spec = DialogSpec.from_dict(payload)
+        assert spec.to_dict()["windows"]["main"]["data"] == {"state": "main"}
+
 
 class TestDialogSpec:
     def test_from_dict(self):
@@ -114,6 +138,15 @@ class TestDialogSpec:
         spec = DialogSpec.from_dict(payload)
         dumped = json.loads(json.dumps(spec.to_dict()))
         assert DialogSpec.from_dict(dumped) == spec
+
+    def test_window_name_key_roundtrips(self):
+        spec = DialogSpec.from_dict(make_minimal_dict() | {"window_name_key": "state"})
+        assert spec.window_name_key == "state"
+        assert spec.to_dict()["window_name_key"] == "state"
+
+    def test_empty_window_name_key_rejected(self):
+        with pytest.raises(ValidationError):
+            DialogSpec.from_dict(make_minimal_dict() | {"window_name_key": ""})
 
     def test_to_dict_is_canonical(self):
         spec = DialogSpec.from_dict(make_minimal_dict())
