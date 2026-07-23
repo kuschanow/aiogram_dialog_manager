@@ -47,21 +47,29 @@ class BaseContentSpec(SpecNode):
     def create_prototype(
             self, name: str, menu_prototype: Optional[SpecMenuPrototype],
             runtime: SpecRuntime, window_name: str,
+            window_data: Optional[dict[str, Value]] = None,
     ) -> BaseMessagePrototype:
         raise NotImplementedError  # pragma: no cover - abstract
 
 
 class SpecMessagePrototypeMixin(SpecPrototypeMixin):
-    """Shared wiring of spec message prototypes: content spec + window menu."""
+    """Shared wiring of spec message prototypes: content spec + window menu.
+
+    Message data is assembled from three layers, later ones winning:
+    the window name under ``runtime.window_name_key`` (if set), the window's
+    default ``data`` (values are expressions), and the render context.
+    """
 
     def __init__(
             self, name: str, content: BaseContentSpec,
             menu_prototype: Optional[SpecMenuPrototype],
             runtime: SpecRuntime, window_name: str,
+            window_data: Optional[dict[str, Value]] = None,
     ):
         super().__init__(name, runtime, window_name)
         self._content = content
         self._menu_prototype = menu_prototype
+        self._window_data = window_data
 
     @property
     def content(self) -> BaseContentSpec:
@@ -76,6 +84,16 @@ class SpecMessagePrototypeMixin(SpecPrototypeMixin):
             return None
         return await self._menu_prototype.get_instance(dialog, context)
 
+    async def get_data(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> dict:
+        data: dict[str, Any] = {}
+        if self._runtime.window_name_key is not None:
+            data[self._runtime.window_name_key] = self._window_name
+        if self._window_data:
+            scope = self._scope(dialog, context)
+            data.update({key: await evaluate_value(value, scope) for key, value in self._window_data.items()})
+        data.update(context or {})
+        return data
+
 
 @node_registry.register
 class TextContentSpec(BaseContentSpec):
@@ -84,8 +102,8 @@ class TextContentSpec(BaseContentSpec):
     type: Literal["text"] = "text"
     text: Value
 
-    def create_prototype(self, name, menu_prototype, runtime, window_name) -> "SpecTextMessagePrototype":
-        return SpecTextMessagePrototype(name, self, menu_prototype, runtime, window_name)
+    def create_prototype(self, name, menu_prototype, runtime, window_name, window_data=None) -> "SpecTextMessagePrototype":
+        return SpecTextMessagePrototype(name, self, menu_prototype, runtime, window_name, window_data)
 
 
 class SpecTextMessagePrototype(SpecMessagePrototypeMixin, TextMessagePrototype):
@@ -106,8 +124,8 @@ class PhotoContentSpec(BaseContentSpec):
     has_spoiler: Value = None
     show_caption_above_media: Value = None
 
-    def create_prototype(self, name, menu_prototype, runtime, window_name) -> "SpecPhotoMessagePrototype":
-        return SpecPhotoMessagePrototype(name, self, menu_prototype, runtime, window_name)
+    def create_prototype(self, name, menu_prototype, runtime, window_name, window_data=None) -> "SpecPhotoMessagePrototype":
+        return SpecPhotoMessagePrototype(name, self, menu_prototype, runtime, window_name, window_data)
 
 
 class SpecPhotoMessagePrototype(SpecMessagePrototypeMixin, PhotoMessagePrototype):
@@ -134,8 +152,8 @@ class DocumentContentSpec(BaseContentSpec):
     caption: Value = None
     disable_content_type_detection: Value = None
 
-    def create_prototype(self, name, menu_prototype, runtime, window_name) -> "SpecDocumentMessagePrototype":
-        return SpecDocumentMessagePrototype(name, self, menu_prototype, runtime, window_name)
+    def create_prototype(self, name, menu_prototype, runtime, window_name, window_data=None) -> "SpecDocumentMessagePrototype":
+        return SpecDocumentMessagePrototype(name, self, menu_prototype, runtime, window_name, window_data)
 
 
 class SpecDocumentMessagePrototype(SpecMessagePrototypeMixin, DocumentMessagePrototype):
@@ -162,8 +180,8 @@ class MediaGroupContentSpec(BaseContentSpec):
     type: Literal["media_group"] = "media_group"
     items: list[Value]
 
-    def create_prototype(self, name, menu_prototype, runtime, window_name) -> "SpecMediaGroupMessagePrototype":
-        return SpecMediaGroupMessagePrototype(name, self, menu_prototype, runtime, window_name)
+    def create_prototype(self, name, menu_prototype, runtime, window_name, window_data=None) -> "SpecMediaGroupMessagePrototype":
+        return SpecMediaGroupMessagePrototype(name, self, menu_prototype, runtime, window_name, window_data)
 
 
 class SpecMediaGroupMessagePrototype(SpecMessagePrototypeMixin, MediaGroupMessagePrototype):

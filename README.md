@@ -653,6 +653,7 @@ b.t("welcome_text")                 # translatable string (see i18n below)
 | `def` / `ref` | named reusable fragments inside the model (a shared "Back" button, common footer) |
 | `provider` | named Python provider from the registry — the only door to external data |
 | `t` | translatable string |
+| `use_button` / `use_menu` / `use_message` | plug an existing registered Python prototype into the spec (see below) |
 
 Rows that render empty are dropped; a menu whose rows are all empty produces no keyboard at all.
 
@@ -669,12 +670,74 @@ menu = b.menu(*b.paginator(
 # nav buttons are named pl_prev / pl_next and carry {"page": <target>} in payload
 ```
 
+### Reusing Python prototypes: `use`
+
+Existing registered prototypes plug into spec dialogs by `type_name` — the standard way to share cancel/skip buttons (and their handlers) across spec and Python dialogs:
+
+```python
+b.window(
+    b.text("Step 1: enter a name"),
+    menu=b.menu(
+        b.row(b.use_button("cancel_btn")),                 # existing ButtonPrototype
+        b.row(b.use_button("skip_btn", context={"step": 1})),
+    ),
+)
+
+b.window(b.text("…"), menu=b.use_menu("shared_menu"))       # existing MenuPrototype
+b.window(b.use_message("error_msg"))                        # existing message prototype
+```
+
+- The used prototype **keeps its own `type_name`** — existing `ButtonFilter`/handler wiring works without changes.
+- `context` values are expressions merged over the render context, so `foreach` can parameterize a used button per item.
+- `use_button`/`use_menu` resolve lazily at render time (the target may be registered after the spec is compiled); `use_message` resolves at compile time — the send/edit paths dispatch on the concrete prototype class.
+- A `use_message` window declares neither `menu` nor `data`: the target prototype controls both (compilation fails otherwise).
+
+### Window data and the "window name is the state" pattern
+
+A window can carry default message data (values are expressions); the render context is merged on top:
+
+```python
+spec = b.dialog(
+    "wizard",
+    window_name_key="state",     # every window stamps its own name into message data under this key
+    windows={
+        "enter_name": b.window(b.text("Name?"), data={"attempts": 0}),
+        "enter_age":  b.window(b.text("Age?")),
+    },
+)
+```
+
+Message data assembles in three layers, later ones winning: `{window_name_key: window_name}` → window `data` → render context. In wizard-style dialogs this removes the boilerplate of passing `{"state": ...}` through every `send_message` — `MessageFilter`/`EditedMessageFilter` route on the stamped window name directly.
+
 ### Localization
 
 `b.t("msgid")` marks a translatable string. Pass a `translator(msgid, locale) -> str` hook to `compile_dialog`; the locale comes from the render context (`ctx.locale`). Without a translator the msgid is returned as is — no translation library is bundled, only the hook.
 
 ```python
 compile_dialog(spec, translator=my_gettext_hook)
+```
+
+**Extracting msgids for gettext.** `pybabel` does not pick up `b.t(...)` calls by default — add `-k t` on the command line (keywords cannot be set per-section in a mapping file: the `python` extractor ignores a `keywords` option there):
+
+```bash
+pybabel extract -F mapping.cfg -k t -o messages.pot src/
+```
+
+For **serialized models** (JSON files, DB dumps) the keyword mechanism cannot see `{"type": "t"}` nodes, so the library ships a Babel extractor (entry point `aiogram_dialog_spec`). Wire it up in the mapping file:
+
+```ini
+[python: **.py]
+
+[aiogram_dialog_spec: dialogs/**.json]
+```
+
+For models stored elsewhere (a DB), `iter_translation_keys` yields every msgid of a model or its dict form:
+
+```python
+from aiogram_dialog_manager.spec import iter_translation_keys
+
+for msgid in iter_translation_keys(spec):   # DialogSpec or its to_dict() form
+    ...
 ```
 
 ### Extensibility
@@ -717,7 +780,9 @@ src/aiogram_dialog_manager/
 │   ├── model.py                # DialogSpec / WindowSpec / MenuSpec (JSON-serializable core)
 │   ├── nodes.py                # expression & structural nodes (path, op, if, foreach, …)
 │   ├── content.py              # window content kinds + interpreting prototypes
+│   ├── use.py                  # use_button / use_menu / use_message nodes
 │   ├── compile.py              # compile_dialog, typed handles, registration
+│   ├── babel.py                # gettext extraction from serialized models
 │   └── builder.py              # Python builder + widgets (paginator)
 └── storage/                    # BaseStorage, MemoryStorage, RedisStorage
 ```

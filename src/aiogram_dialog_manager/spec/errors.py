@@ -34,3 +34,8 @@ class UnknownProviderError(SpecError):
 
 class UnknownReferenceError(SpecError):
     """A ``ref`` node references a name that is not present in ``defs``."""
+
+
+class UnknownPrototypeError(SpecError):
+    """A ``use`` node references a prototype ``type_name`` that is not
+    registered in the corresponding prototype registry."""

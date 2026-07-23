@@ -421,3 +421,50 @@ class TestRuntimeCompatibility:
         await memory_storage.set(f"dialog:{instance.id}", instance.model_dump(mode="json"))
         loaded = DialogInstance.model_validate(await memory_storage.get_dict(f"dialog:{instance.id}"))
         assert loaded.type_name == "settings"
+
+
+class TestWindowData:
+    def make_compiled(self, *, window_extra=None, dialog_extra=None):
+        payload = {
+            "name": "wizard",
+            "windows": {
+                "step_one": {
+                    "content": {"type": "text", "text": "hi"},
+                    **(window_extra or {}),
+                },
+            },
+            **(dialog_extra or {}),
+        }
+        return compile_dialog(DialogSpec.from_dict(payload))
+
+    async def test_default_data_is_context_only(self):
+        compiled = self.make_compiled()
+        assert await compiled.windows.step_one.message.get_data(None, {"a": 1}) == {"a": 1}
+
+    async def test_window_data_evaluated_and_merged_under_context(self):
+        compiled = self.make_compiled(window_extra={
+            "data": {"state": "step_one", "page": {"type": "path", "path": "data.page"}},
+        })
+        data = await compiled.windows.step_one.message.get_data(FakeDialog({"page": 3}), {"page": 0, "extra": True})
+        # context wins over window defaults
+        assert data == {"state": "step_one", "page": 0, "extra": True}
+
+    async def test_window_name_key_stamps_window_name(self):
+        compiled = self.make_compiled(dialog_extra={"window_name_key": "state"})
+        data = await compiled.windows.step_one.message.get_data(None, {"a": 1})
+        assert data == {"state": "step_one", "a": 1}
+
+    async def test_merge_order_name_key_then_data_then_context(self):
+        compiled = self.make_compiled(
+            window_extra={"data": {"state": "from_data", "step": 1}},
+            dialog_extra={"window_name_key": "state"},
+        )
+        assert await compiled.windows.step_one.message.get_data(None, None) == {"state": "from_data", "step": 1}
+        assert await compiled.windows.step_one.message.get_data(None, {"state": "override"}) == {
+            "state": "override", "step": 1,
+        }
+
+    async def test_window_data_lands_in_message_instance(self):
+        compiled = self.make_compiled(dialog_extra={"window_name_key": "state"})
+        instance = await compiled.windows.step_one.message.get_instance(FakeDialog(), None)
+        assert instance.data == {"state": "step_one"}

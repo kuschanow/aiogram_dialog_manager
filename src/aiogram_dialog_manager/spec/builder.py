@@ -52,6 +52,7 @@ from aiogram_dialog_manager.spec.content import (
     PhotoContentSpec,
     TextContentSpec,
 )
+from aiogram_dialog_manager.spec.use import UseButtonNode, UseMenuNode, UseMessageContentSpec
 
 _UNSET = object()
 
@@ -217,6 +218,24 @@ def menu(
     return MenuSpec(rows=list(rows), keyboard_type=keyboard_type, reply_parameters=reply_parameters)
 
 
+def use_button(name: str, *, context: Optional[dict[str, Any]] = None) -> UseButtonNode:
+    """Render an existing registered button prototype (it keeps its own
+    ``type_name``, so its handlers keep working). ``context`` values are
+    expressions merged over the render context."""
+    return UseButtonNode(name=name, context=context)
+
+
+def use_menu(name: str, *, context: Optional[dict[str, Any]] = None) -> UseMenuNode:
+    """Delegate the window's menu to an existing registered menu prototype."""
+    return UseMenuNode(name=name, context=context)
+
+
+def use_message(name: str) -> UseMessageContentSpec:
+    """Delegate the window's message to an existing registered message
+    prototype (such a window declares neither ``menu`` nor ``data``)."""
+    return UseMessageContentSpec(name=name)
+
+
 def text(*fragments: Any) -> TextContentSpec:
     return TextContentSpec(text=fragments[0] if len(fragments) == 1 else list(fragments))
 
@@ -243,17 +262,26 @@ def media_group(*items: Any) -> MediaGroupContentSpec:
     return MediaGroupContentSpec(items=list(items))
 
 
-def window(content: Any, menu: Optional[MenuSpec] = None) -> WindowSpec:
-    return WindowSpec(content=content, menu=menu)
+def window(
+        content: Any,
+        menu: Optional[Union[MenuSpec, UseMenuNode]] = None,
+        *,
+        data: Optional[dict[str, Any]] = None,
+) -> WindowSpec:
+    return WindowSpec(content=content, menu=menu, data=data)
 
 
 def dialog(
         name: str, *,
         windows: dict[str, WindowSpec],
         defs: Optional[dict[str, Any]] = None,
+        window_name_key: Optional[str] = None,
         version: int = 1,
 ) -> DialogSpec:
-    return DialogSpec(version=version, name=name, windows=windows, defs=defs or {})
+    return DialogSpec(
+        version=version, name=name, windows=windows, defs=defs or {},
+        window_name_key=window_name_key,
+    )
 
 
 def paginator(
