@@ -25,29 +25,21 @@ from aiogram_dialog_manager.prototype.base import BaseMessagePrototype
 from aiogram_dialog_manager.prototype.button import ButtonPrototype
 from aiogram_dialog_manager.prototype.menu import MenuPrototype
 from aiogram_dialog_manager.spec.content import BaseContentSpec
-from aiogram_dialog_manager.spec.errors import UnknownPrototypeError
 from aiogram_dialog_manager.spec.node import EvaluableNode, SpecNode, Value, evaluate_value, node_registry
-from aiogram_dialog_manager.spec.scope import EvalScope, SpecRuntime
+from aiogram_dialog_manager.spec.scope import EvalScope, SpecResolver, SpecRuntime
 
 if TYPE_CHECKING:
     from aiogram_dialog_manager.dialog_operator import DialogOperator
 
+_DEFAULT_RESOLVER = SpecResolver()
+
 
 def resolve_prototype(base_cls: type, name: str) -> Any:
-    """Resolve a prototype from ``base_cls._registry`` by ``type_name``.
-
-    Python prototypes are stored as classes and are instantiated here (they
-    must have a no-argument constructor to be usable from specs); spec entries
-    are stored as ready instances.
+    """Resolve a prototype from ``base_cls._registry`` by ``type_name`` using
+    the default (non-gating) resolver — the standalone convenience form of
+    :meth:`~aiogram_dialog_manager.spec.scope.SpecResolver.resolve`.
     """
-    try:
-        entry = base_cls._registry[name]
-    except KeyError:
-        raise UnknownPrototypeError(
-            f"{base_cls.__name__} name '{name}' is not registered; "
-            f"'use' nodes require the target prototype to be registered"
-        ) from None
-    return entry() if isinstance(entry, type) else entry
+    return _DEFAULT_RESOLVER.resolve(base_cls, name, None)
 
 
 async def _merge_context(context_spec: Optional[dict[str, Value]], scope: EvalScope) -> Optional[dict[str, Any]]:
@@ -74,7 +66,7 @@ class UseButtonNode(EvaluableNode):
     context: Optional[dict[str, Value]] = None
 
     async def evaluate(self, scope: EvalScope) -> ButtonInstance:
-        prototype = resolve_prototype(ButtonPrototype, self.name)
+        prototype = scope.runtime.resolver.resolve(ButtonPrototype, self.name, scope)
         return await prototype.get_instance(scope.dialog, await _merge_context(self.context, scope))
 
 
@@ -101,44 +93,105 @@ class UseMenuPrototype(MenuPrototype):
     def name(self) -> str:
         return self._node.name
 
-    def _target(self) -> MenuPrototype:
-        return resolve_prototype(MenuPrototype, self._node.name)
-
-    async def _context(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
-        scope = EvalScope(
+    def _scope(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> EvalScope:
+        return EvalScope(
             runtime=self._runtime,
             dialog=dialog,
             context=context or {},
             window_name=self._window_name,
         )
-        return await _merge_context(self._node.context, scope)
+
+    def _target(self, scope: EvalScope) -> MenuPrototype:
+        return self._runtime.resolver.resolve(MenuPrototype, self._node.name, scope)
 
     async def get_buttons(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> list[list[ButtonInstance]]:
-        return await self._target().get_buttons(dialog, await self._context(dialog, context))
+        scope = self._scope(dialog, context)
+        return await self._target(scope).get_buttons(dialog, await _merge_context(self._node.context, scope))
 
     async def get_data(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> dict:
-        return await self._target().get_data(dialog, await self._context(dialog, context))
+        scope = self._scope(dialog, context)
+        return await self._target(scope).get_data(dialog, await _merge_context(self._node.context, scope))
 
     async def get_additional_reply_parameters(
             self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]],
     ) -> Optional[AdditionalReplyMenuParameters]:
-        return await self._target().get_additional_reply_parameters(dialog, await self._context(dialog, context))
+        scope = self._scope(dialog, context)
+        return await self._target(scope).get_additional_reply_parameters(dialog, await _merge_context(self._node.context, scope))
 
     async def get_instance(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> MenuInstance:
-        return await self._target().get_instance(dialog, await self._context(dialog, context))
+        scope = self._scope(dialog, context)
+        return await self._target(scope).get_instance(dialog, await _merge_context(self._node.context, scope))
 
 
 @node_registry.register
 class UseMessageContentSpec(BaseContentSpec):
     """Window content delegating to an existing registered message prototype.
 
-    Resolved at compile time to the real registered prototype (the send/edit
-    paths dispatch on its concrete class). Such a window cannot declare its
-    own ``menu`` or ``data`` — the target prototype controls both.
+    Resolved **lazily at render time** through ``runtime.resolver`` (via
+    :class:`UseMessagePrototype`), so a compiled dialog resolves nothing and
+    access policies apply per execution — symmetric with ``use_button`` and
+    ``use_menu``. Such a window cannot declare its own ``menu`` or ``data`` —
+    the target prototype controls both.
     """
 
     type: Literal["use_message"] = "use_message"
     name: str = Field(..., min_length=1)
 
-    def create_prototype(self, name, menu_prototype, runtime, window_name, window_data=None) -> BaseMessagePrototype:
-        return resolve_prototype(BaseMessagePrototype, self.name)
+    def create_prototype(self, name, menu_prototype, runtime, window_name, window_data=None) -> "UseMessagePrototype":
+        return UseMessagePrototype(self, runtime, window_name)
+
+
+class UseMessagePrototype(BaseMessagePrototype):
+    """Interprets a :class:`UseMessageContentSpec`: resolves the target message
+    prototype lazily per call through ``runtime.resolver`` and delegates to it —
+    the message analog of :class:`UseMenuPrototype`. The instance keeps the
+    target's own ``type_name``.
+
+    ``get_instance``/``_do_send``/``_do_edit`` are delegated explicitly (their
+    first argument is ``bot`` or they are abstract); the kind-specific getters
+    (``get_input_media``, ``get_latitude``, ...) share the ``(dialog, context,
+    *rest)`` shape and are forwarded via :meth:`__getattr__`.
+    """
+
+    def __init__(self, node: UseMessageContentSpec, runtime: SpecRuntime, window_name: str):
+        self._node = node
+        self._runtime = runtime
+        self._window_name = window_name
+
+    @property
+    def name(self) -> str:
+        return self._node.name
+
+    def _target(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]) -> BaseMessagePrototype:
+        scope = EvalScope(
+            runtime=self._runtime,
+            dialog=dialog,
+            context=context or {},
+            window_name=self._window_name,
+        )
+        return self._runtime.resolver.resolve(BaseMessagePrototype, self._node.name, scope)
+
+    async def get_instance(self, dialog: "Optional[DialogOperator]", context: Optional[dict[str, Any]]):
+        return await self._target(dialog, context).get_instance(dialog, context)
+
+    async def _do_send(self, bot, dialog, context, target, instance, effective_params, reply_markup):
+        return await self._target(dialog, context)._do_send(
+            bot, dialog, context, target, instance, effective_params, reply_markup,
+        )
+
+    async def _do_edit(self, bot, dialog, context, tg, instance, inline_markup, effective_params):
+        return await self._target(dialog, context)._do_edit(
+            bot, dialog, context, tg, instance, inline_markup, effective_params,
+        )
+
+    def __getattr__(self, item: str):
+        # Forward kind-specific getters (all shaped (dialog, context, *rest)) to
+        # the resolved target; internal/dunder lookups are not proxied.
+        if item.startswith("_"):
+            raise AttributeError(item)
+
+        async def forward(dialog, context, *args, **kwargs):
+            target = self._target(dialog, context)
+            return await getattr(target, item)(dialog, context, *args, **kwargs)
+
+        return forward

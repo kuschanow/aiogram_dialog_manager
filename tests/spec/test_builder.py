@@ -7,6 +7,7 @@ from aiogram_dialog_manager.spec import (
     ChunkNode,
     DialogSpec,
     DocumentContentSpec,
+    EscapeNode,
     ForeachNode,
     IfNode,
     LiteralNode,
@@ -45,6 +46,11 @@ class TestExpressionHelpers:
     def test_private_attribute_access_raises(self):
         with pytest.raises(AttributeError):
             b.data_._private
+
+    def test_escape_keeps_type_key(self):
+        assert node(b.escape({"type": "premium", "count": b.data_.n})) == EscapeNode(
+            entries={"type": "premium", "count": PathNode(path="data.n")}
+        )
 
     def test_lit_fn_t_provider_ref(self):
         assert node(b.lit({"type": "raw"})) == LiteralNode(value={"type": "raw"})

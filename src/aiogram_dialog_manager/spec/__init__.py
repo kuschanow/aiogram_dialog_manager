@@ -8,7 +8,6 @@ from aiogram_dialog_manager.spec.compile import (
     CompiledDialog,
     CompiledWindow,
     Namespace,
-    SpecDialogPrototype,
     compile_dialog,
     iter_spec_nodes,
 )
@@ -17,10 +16,6 @@ from aiogram_dialog_manager.spec.content import (
     DocumentContentSpec,
     MediaGroupContentSpec,
     PhotoContentSpec,
-    SpecDocumentMessagePrototype,
-    SpecMediaGroupMessagePrototype,
-    SpecPhotoMessagePrototype,
-    SpecTextMessagePrototype,
     TextContentSpec,
 )
 from aiogram_dialog_manager.spec.babel import extract_spec, iter_translation_keys
@@ -50,6 +45,7 @@ from aiogram_dialog_manager.spec.nodes import (
     ButtonSpec,
     CallNode,
     ChunkNode,
+    EscapeNode,
     ForeachNode,
     IfNode,
     LiteralNode,
@@ -62,14 +58,27 @@ from aiogram_dialog_manager.spec.nodes import (
     SliceNode,
     TranslateNode,
 )
-from aiogram_dialog_manager.spec.prototypes import SpecButtonPrototype, SpecMenuPrototype
+from aiogram_dialog_manager.spec.prototypes import (
+    SpecButtonPrototype,
+    SpecDialogPrototype,
+    SpecDocumentMessagePrototype,
+    SpecMediaGroupMessagePrototype,
+    SpecMenuPrototype,
+    SpecMessagePrototypeMixin,
+    SpecPhotoMessagePrototype,
+    SpecPrototypeFactory,
+    SpecPrototypeMixin,
+    SpecTextMessagePrototype,
+    render_text,
+)
 from aiogram_dialog_manager.spec.registration import is_spec_registered, register_spec_prototype
 from aiogram_dialog_manager.spec.registries import FunctionRegistry, NodeRegistry, ProviderRegistry
-from aiogram_dialog_manager.spec.scope import EvalScope, SpecRuntime, Translator
+from aiogram_dialog_manager.spec.scope import EvalScope, SpecResolver, SpecRuntime, Translator
 from aiogram_dialog_manager.spec.use import (
     UseButtonNode,
     UseMenuNode,
     UseMenuPrototype,
     UseMessageContentSpec,
+    UseMessagePrototype,
     resolve_prototype,
 )

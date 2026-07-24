@@ -19,11 +19,12 @@ from aiogram_dialog_manager.spec.content import (
     TextContentSpec,
 )
 from aiogram_dialog_manager.spec.model import DialogSpec, MenuSpec, WindowSpec
-from aiogram_dialog_manager.spec.node import SpecNode
+from aiogram_dialog_manager.spec.node import SpecNode, node_registry
 from aiogram_dialog_manager.spec.nodes import (
     ButtonSpec,
     CallNode,
     ChunkNode,
+    EscapeNode,
     ForeachNode,
     IfNode,
     MediaItemNode,
@@ -111,7 +112,7 @@ class Transformer:
         name = _tv(name_node) if name_node else None
         if name is None:
             raise _err(node, "dialog must have a name")
-        config = self._map(_opt(map_opt)) if _opt(map_opt) else {}
+        settings = self._map(_opt(map_opt)) if _opt(map_opt) else {}
 
         windows: dict[str, WindowSpec] = {}
         defs: dict[str, Any] = {}
@@ -132,12 +133,16 @@ class Transformer:
             raise _err(node, "dialog must declare at least one window")
 
         kwargs: dict[str, Any] = {"name": name, "windows": windows, "defs": defs}
-        if "window_name_key" in config:
-            kwargs["window_name_key"] = self._literal_str(config.pop("window_name_key"), node, "window_name_key")
-        if "version" in config:
-            kwargs["version"] = self._literal_int(config.pop("version"), node, "version")
-        if config:
-            raise _err(node, f"unknown dialog setting(s): {', '.join(sorted(config))}")
+        if "window_name_key" in settings:
+            kwargs["window_name_key"] = self._literal_str(settings.pop("window_name_key"), node, "window_name_key")
+        if "data" in settings:
+            kwargs["data"] = self._map_value_to_dict(settings.pop("data"), node, "data")
+        if "config" in settings:
+            kwargs["config"] = self._map_value_to_dict(settings.pop("config"), node, "config")
+        if "version" in settings:
+            kwargs["version"] = self._literal_int(settings.pop("version"), node, "version")
+        if settings:
+            raise _err(node, f"unknown dialog setting(s): {', '.join(sorted(settings))}")
         return DialogSpec(**kwargs)
 
     # ── defs ─────────────────────────────────────────────────────────────
@@ -485,6 +490,10 @@ class Transformer:
             return self._slice(head)
         if kind == "proto_call":
             return self._proto(head)
+        if kind == "escape_call":
+            return self._escape(head)
+        if kind == "node_call":
+            return self._node(head)
         if kind == "map":
             return self._map(head)
         raise _err(head, f"unexpected primary '{kind}'")  # pragma: no cover
@@ -543,6 +552,21 @@ class Transformer:
         # proto_call -> BUTTON LPAREN expr RPAREN
         name = self._literal_str(self._expr(node.children[2]), node, "button() name")
         return UseButtonNode(name=name)
+
+    def _escape(self, node: Any) -> EscapeNode:
+        # escape_call -> ESCAPE map | ESCAPE LPAREN RPAREN
+        if len(node.children) == 2:  # ESCAPE map
+            return EscapeNode(entries=self._map(node.children[1]))
+        return EscapeNode(entries={})  # ESCAPE LPAREN RPAREN
+
+    def _node(self, node: Any) -> SpecNode:
+        # node_call -> NODE LPAREN expr (COMMA pair_list)? RPAREN
+        # Generic escape hatch: build any registered node kind by type name.
+        type_name = self._literal_str(self._expr(node.children[2]), node, "node() type")
+        fields = self._pair_list(node.children[4]) if len(node.children) == 6 else {}
+        if "type" in fields:
+            raise _err(node, "node() takes the type as its first argument; drop the 'type' field")
+        return node_registry.create({"type": type_name, **fields})
 
     # ── maps / helpers ───────────────────────────────────────────────────
     def _map(self, node: Any) -> dict[str, Any]:

@@ -52,6 +52,24 @@ class LiteralNode(EvaluableNode):
 
 
 @node_registry.register
+class EscapeNode(EvaluableNode):
+    """A plain object whose key set may include ``"type"``.
+
+    A dict with a ``"type"`` key placed in a ``Value`` field is otherwise taken
+    for a node. This wraps such a map so the **container** is kept as data while
+    its values are still evaluated — unlike ``literal``, which freezes the whole
+    subtree. Only this one level is escaped; the values stay ordinary
+    expressions.
+    """
+
+    type: Literal["escape"] = "escape"
+    entries: dict[str, Value] = Field(default_factory=dict)
+
+    async def evaluate(self, scope: EvalScope) -> dict:
+        return {key: await evaluate_value(value, scope) for key, value in self.entries.items()}
+
+
+@node_registry.register
 class PathNode(EvaluableNode):
     """Reads a dotted path from an explicit namespace: ``data.*``, ``ctx.*``
     or a construct-local name (``item``, ``index``). Missing path -> ``None``."""

@@ -153,6 +153,8 @@ _RULES = [
     ('primary', [('n', 'ref_call')]),
     ('primary', [('n', 'slice_call')]),
     ('primary', [('n', 'proto_call')]),
+    ('primary', [('n', 'escape_call')]),
+    ('primary', [('n', 'node_call')]),
     ('primary', [('n', 'map')]),
     ('primary', [('t', 'LPAREN', 'SYM', '('), ('n', 'expr'), ('t', 'RPAREN', 'SYM', ')')]),
     ('primary', [('t', 'LBRACK', 'SYM', '['), ('t', 'RBRACK', 'SYM', ']')]),
@@ -171,9 +173,13 @@ _RULES = [
     ('ref_call', [('t', 'REF', 'KW', 'ref'), ('t', 'LPAREN', 'SYM', '('), ('n', 'expr'), ('t', 'RPAREN', 'SYM', ')')]),
     ('slice_call', [('t', 'SLICE', 'KW', 'slice'), ('t', 'LPAREN', 'SYM', '('), ('n', 'arg_list'), ('t', 'RPAREN', 'SYM', ')')]),
     ('proto_call', [('t', 'BUTTON', 'KW', 'button'), ('t', 'LPAREN', 'SYM', '('), ('n', 'expr'), ('t', 'RPAREN', 'SYM', ')')]),
+    ('escape_call', [('t', 'ESCAPE', 'KW', 'escape'), ('n', 'map')]),
+    ('escape_call', [('t', 'ESCAPE', 'KW', 'escape'), ('t', 'LPAREN', 'SYM', '('), ('t', 'RPAREN', 'SYM', ')')]),
+    ('node_call', [('t', 'NODE', 'KW', 'node'), ('t', 'LPAREN', 'SYM', '('), ('n', 'expr'), ('t', 'RPAREN', 'SYM', ')')]),
+    ('node_call', [('t', 'NODE', 'KW', 'node'), ('t', 'LPAREN', 'SYM', '('), ('n', 'expr'), ('t', 'COMMA', 'SYM', ','), ('n', 'pair_list'), ('t', 'RPAREN', 'SYM', ')')]),
 ]
 
-_NT_INDEX = {'file': [0], 'dialog': [1], '_opt_0': [2, 3], '_opt_1': [4, 5], '_rep_2': [6, 7], 'dialog_member': [8, 9], 'map': [10], 'pair_list': [11, 12], 'pair': [13], 'defs_block': [14], '_rep_3': [15, 16], 'def_entry': [17], 'window': [18], '_opt_4': [19, 20], '_opt_5': [21, 22], '_rep_6': [23, 24], 'window_member': [25, 26, 27, 28, 29, 30], 'message_decl': [31], '_opt_7': [32, 33], '_opt_8': [34, 35], '_rep_9': [36, 37], 'message_ref': [38], 'content_member': [39, 40], 'field': [41], 'menu_decl': [42], '_opt_10': [43, 44], '_opt_11': [45, 46], '_rep_12': [47, 48], 'menu_ref': [49], 'row': [50, 51], 'value_list': [52, 53], 'if_stmt': [54, 55], 'foreach_stmt': [56, 57], 'chunk_stmt': [58], 'block': [59], '_rep_13': [60, 61], 'button_decl': [62, 63], 'media_group': [64], '_rep_14': [65, 66], 'media_member': [67, 68, 69], 'media_foreach': [70, 71], 'media_if': [72, 73], 'media_block': [74], '_rep_15': [75, 76], 'media_item': [77], '_rep_16': [78, 79], 'media_satellite': [80], 'value': [81, 82, 83, 84, 85, 86], 'expr': [87], 'or_expr': [88, 89], 'and_expr': [90, 91], 'not_expr': [92, 93], 'cmp_expr': [94, 95, 96, 97, 98, 99, 100, 101, 102], 'add_expr': [103, 104, 105], 'mul_expr': [106, 107, 108, 109], 'unary': [110, 111], 'primary': [112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127], 'path': [128, 129, 130], 'call': [131, 132], 'arg_list': [133, 134], 't_call': [135], 'provider_call': [136, 137], 'ref_call': [138, 139], 'slice_call': [140], 'proto_call': [141]}
+_NT_INDEX = {'file': [0], 'dialog': [1], '_opt_0': [2, 3], '_opt_1': [4, 5], '_rep_2': [6, 7], 'dialog_member': [8, 9], 'map': [10], 'pair_list': [11, 12], 'pair': [13], 'defs_block': [14], '_rep_3': [15, 16], 'def_entry': [17], 'window': [18], '_opt_4': [19, 20], '_opt_5': [21, 22], '_rep_6': [23, 24], 'window_member': [25, 26, 27, 28, 29, 30], 'message_decl': [31], '_opt_7': [32, 33], '_opt_8': [34, 35], '_rep_9': [36, 37], 'message_ref': [38], 'content_member': [39, 40], 'field': [41], 'menu_decl': [42], '_opt_10': [43, 44], '_opt_11': [45, 46], '_rep_12': [47, 48], 'menu_ref': [49], 'row': [50, 51], 'value_list': [52, 53], 'if_stmt': [54, 55], 'foreach_stmt': [56, 57], 'chunk_stmt': [58], 'block': [59], '_rep_13': [60, 61], 'button_decl': [62, 63], 'media_group': [64], '_rep_14': [65, 66], 'media_member': [67, 68, 69], 'media_foreach': [70, 71], 'media_if': [72, 73], 'media_block': [74], '_rep_15': [75, 76], 'media_item': [77], '_rep_16': [78, 79], 'media_satellite': [80], 'value': [81, 82, 83, 84, 85, 86], 'expr': [87], 'or_expr': [88, 89], 'and_expr': [90, 91], 'not_expr': [92, 93], 'cmp_expr': [94, 95, 96, 97, 98, 99, 100, 101, 102], 'add_expr': [103, 104, 105], 'mul_expr': [106, 107, 108, 109], 'unary': [110, 111], 'primary': [112, 113, 114, 115, 116, 117, 118, 119, 120, 121, 122, 123, 124, 125, 126, 127, 128, 129], 'path': [130, 131, 132], 'call': [133, 134], 'arg_list': [135, 136], 't_call': [137], 'provider_call': [138, 139], 'ref_call': [140, 141], 'slice_call': [142], 'proto_call': [143], 'escape_call': [144, 145], 'node_call': [146, 147]}
 _START = 'expr'
 
 def _matches(sym, token_type, token_value):

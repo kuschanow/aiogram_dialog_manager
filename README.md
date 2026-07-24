@@ -689,8 +689,41 @@ b.window(b.use_message("error_msg"))                        # existing message p
 
 - The used prototype **keeps its own `type_name`** — existing `ButtonFilter`/handler wiring works without changes.
 - `context` values are expressions merged over the render context, so `foreach` can parameterize a used button per item.
-- `use_button`/`use_menu` resolve lazily at render time (the target may be registered after the spec is compiled); `use_message` resolves at compile time — the send/edit paths dispatch on the concrete prototype class.
+- All three (`use_button`/`use_menu`/`use_message`) resolve **lazily at render time** through the dialog's resolver (see below): the target may be registered after the spec is compiled, and a compiled dialog resolves nothing until used — so it caches and re-runs cheaply.
 - A `use_message` window declares neither `menu` nor `data`: the target prototype controls both (compilation fails otherwise).
+
+### Swapping resolution and interpreters
+
+Two extension seams on `compile_dialog`, both symmetric across the primitives:
+
+**`resolver=`** — how every `use` reference (`button`/`menu`/`message`) resolves a registered prototype by name, at render time. Subclass `SpecResolver` to gate access, scope a registry, or log; the default is a plain registry lookup. This is the single choke point for access control over untrusted scripts:
+
+```python
+from aiogram_dialog_manager.spec import SpecResolver
+
+class AccessResolver(SpecResolver):
+    def __init__(self, author, rights):
+        self._author, self._rights = author, rights
+
+    def resolve(self, base_cls, name, scope):
+        if not self._rights.may_use(self._author, base_cls, name):
+            raise AccessDenied(name)          # author fixed per script; acting user via scope
+        return super().resolve(base_cls, name, scope)
+
+compile_dialog(spec, resolver=AccessResolver(author, rights))   # compile once, resolve per render
+```
+
+**`prototypes=`** — a `SpecPrototypeFactory` builds the four spec interpreters (dialog / message / menu / button). Override a hook to swap the interpreter of a primitive across the whole dialog:
+
+```python
+from aiogram_dialog_manager.spec import SpecPrototypeFactory
+
+class MyFactory(SpecPrototypeFactory):
+    def create_button(self, name, spec, runtime, window_name):
+        return LoggingButtonPrototype(name, spec, runtime, window_name)
+
+compile_dialog(spec, prototypes=MyFactory())
+```
 
 ### Window data and the "window name is the state" pattern
 
@@ -708,6 +741,8 @@ spec = b.dialog(
 ```
 
 Message data assembles in three layers, later ones winning: `{window_name_key: window_name}` → window `data` → render context. In wizard-style dialogs this removes the boilerplate of passing `{"state": ...}` through every `send_message` — `MessageFilter`/`EditedMessageFilter` route on the stamped window name directly.
+
+The **dialog itself** carries the same, symmetric with windows: `b.dialog(..., data={...}, config={...})`. `data` seeds the initial `dialog.data` (render context merged on top); `config` evaluates into `DialogConfig` (its keys are validated against the config schema at build time). Both are expression maps, interpreted by the dialog prototype's `get_data`/`get_config`.
 
 ### Localization
 
@@ -740,25 +775,151 @@ for msgid in iter_translation_keys(spec):   # DialogSpec or its to_dict() form
     ...
 ```
 
-### Extensibility
+### Textual DSL
 
-Four open registries: message/menu/button prototypes (existing), expression **functions**, **providers**, and **node kinds**. All standard nodes — including `t` — are implemented through the same public node registry you would use for your own:
+For dialogs authored as plain text — stored in a `.dlg` file, a text field, or a DB column — a compact syntax compiles into the exact same `DialogSpec`. It needs no extra runtime dependency (the lexer/parser are pre-generated and shipped):
 
 ```python
-from aiogram_dialog_manager.spec import EvaluableNode, node_registry
-from typing import Literal
+from aiogram_dialog_manager.spec.text import parse_dialog_text
+from aiogram_dialog_manager.spec import compile_dialog
 
-@node_registry.register
-class MyNode(EvaluableNode):
-    type: Literal["my_node"] = "my_node"
-    ...
-    async def evaluate(self, scope):
-        ...
+spec = parse_dialog_text(open("create_game.dlg").read())   # -> DialogSpec
+compiled = compile_dialog(spec, register=True)             # compiles like any other spec
 ```
 
-Mixing is free: within one dialog some windows can come from a spec and others from Python prototype classes — both live in the same registries.
+Braces `{}` mark nested structure (not indentation — robust to reflowed text/DB storage). Comments: `// line` and `/* block */`.
 
-Window content types shipped in the first iteration: `text`, `photo`, `document`, `media_group`. A textual DSL (compact syntax compiled into the same model) is planned as phase 2 — see `docs/dialog_spec_design.md` and `docs/dialog_spec_text_syntax.md`.
+```
+dialog create_game (window_name_key="state", data=(step=0), config=(allow_reply_lookup=true)) {
+  defs {
+    back: button back (text=t("btn_back"))
+    footer: row [ ref back, button help (text="?") ]
+  }
+
+  window title_prompt (data=(attempts=0)) {
+    text: "Hello, {data.name}!"
+    menu (keyboard_type="inline") {
+      row [ button save (text=t("save"), data=(id=item.id)), button("cancel_btn") ]
+      foreach player, i in data.players {
+        row [ button pick (text="{player.name} #{i}", data=(pid=player.0)) ]
+      }
+      if data.page > 0 {
+        row [ button prev (text="«", data=(p=data.page - 1)) ]
+      } else {
+        ref footer
+      }
+      chunk 2 { foreach x in data.items { button b (text=x.name) } }
+    }
+  }
+
+  window album {
+    media_group {
+      foreach ph in data.photos { photo ph.file_id caption: "{ph.title}" has_spoiler: true }
+    }
+  }
+}
+```
+
+**One shape for the five declarations.** `dialog`, `window`, `menu`, `message`, `button` all read `<keyword> <name>? (config)? { children }`:
+
+- `( config )` — a flat, order-free map of parameters (`key = expr`).
+- `{ children }` — nested nodes (content, menu, rows, …). A **leaf** has no children and no braces, so a button is all config: `button back (text=…, data=(…), inline=(…), common=(…))`.
+- The name is **optional** — omit it and a deterministic `#N` marker name is synthesized. Name anything you reference from the DSL or wire from Python (`ButtonFilter`, window `state`).
+- `dialog`/`window` carry `data=(…)` (default data, expressions); `dialog` also takes `config=(…)` (validated `DialogConfig` fields) and `window_name_key=…`.
+
+`row`, `foreach`, `if`, `chunk`, `slice`, `ref` and media items are **not** declarations and keep their own syntax (`row [ … ]`, `foreach x in …`).
+
+**Content.** A window's content is either inline fields (sugar for an anonymous message) or an explicit `message { … }` / `message("proto")` — never both. Fields: `text:` · `photo:` (+ `caption`, `has_spoiler`, `show_caption_above_media`) · `document:` (+ `caption`, `disable_content_type_detection`); or `media_group { … }` with positional items `photo <expr> [caption: …] [has_spoiler: …]` (`photo`/`video`/`document`/`audio`), spliced by `foreach`/`if`.
+
+**Menu, rows, structural.** `menu (keyboard_type="reply", reply_parameters=(…)) { <rows/structural> }` (or `menu("shared")`); `row [ <buttons/refs/structural> ]` (comma-separated); `if <expr> { … } else { … }`; `foreach <alias>[, <index>] in <expr> { … }` (`item`/`index` stay bound; aliases let a nested `foreach` reach the outer element); `chunk <expr> { … }`.
+
+**Expressions & strings.** Operators `< > <= >= == != + - * / % and or not in "not in"`, unary `-`/`not`, grouping `( … )`, standard precedence. Paths `data.x` / `item.0`, calls `join(data.tags, ", ")`, list `[ … ]`, inline map `( k=v, … )`. Registry forms: `t("msgid")`, `provider("name", k=v)`, `ref name` / `ref("name")`, `slice(over, start, stop)`, and prototype refs `button("name")` / `menu("name")` / `message("name")`.
+
+- **Quotes = a string literal; a bare name = a reference.** `"…"`/`'…'` are equivalent; `{ expr }` interpolates inside a string, `{{`/`}}` are literal braces (use the other quote style inside a hole).
+- Reuse mirrors the builder: `X("name")` references the **same** registered prototype; `defs { name: <fragment> }` + `ref name` expands a **fresh** fragment at each site.
+
+**Which node kinds the DSL exposes.** The grammar covers every built-in node kind:
+
+| Category | DSL syntax | Node |
+|----------|-----------|------|
+| paths | `data.x`, `item.0`, bare names | `path` |
+| operators | `a + b`, `x and y`, `not z`, … | `op` |
+| function call | `join(data.tags, ", ")` | `call` |
+| translation | `t("msgid")` | `t` |
+| provider | `provider("name", k=v)` | `provider` |
+| fresh reuse | `ref name` / `ref("name")` | `ref` |
+| slice | `slice(over, start, stop)` | `slice` |
+| list / map | `[ … ]` / `( k=v, … )` | list / dict value |
+| structure | `row [ … ]`, `if/else`, `foreach`, `chunk` | `row`/`if`/`foreach`/`chunk` |
+| content | `text:` / `photo:` / `document:` / `media_group { … }` | content specs, `media_item` |
+| declarations | `dialog`/`window`/`menu`/`message`/`button` | the five prototype nodes |
+| shared reuse | `button("n")` / `menu("n")` / `message("n")` | `use_button`/`use_menu`/`use_message` |
+| object w/ `type` key | `escape(k=v, …)` | `escape` |
+| any node by name | `node("type_name", k=v, …)` | any registered node |
+
+**The generic escape hatch.** `node("type_name", field=expr, …)` builds *any* registered node kind by name — the way to reach node kinds without dedicated sugar from the text DSL: your **own custom node kinds**, or `literal` for fully-opaque data (`node("literal", value=…)`). It is deliberately verbose (positional `type` first, then `key=value` fields); use the sugared forms above for the common kinds. So nothing is truly out of reach from the DSL — only some kinds need the verbose form.
+
+**Current limits.** Names passed to `button(...)`/`menu(...)`/`message(...)`/`ref(...)`/`t(...)` must be **string literals** (a non-literal argument raises a clear error); a spec-level `message` takes no send parameters (`parse_mode`, …) yet; general calls take positional args only (`provider` is the exception that takes `k=v`).
+
+### Extensibility
+
+Four open registries: message/menu/button prototypes (existing), expression **functions**, **providers**, and **node kinds**.
+
+**Reach for functions/providers first.** If you only need a new computation or a new data source, register a pure function (callable as `fn("name", …)` in the builder and `name(...)` in the DSL) or a provider (`provider("name", …)`). Both work across the builder, JSON, and the text DSL — no new node type required. Write a **custom node** only when you need a new *shape* of expression or structure.
+
+#### How a node is built
+
+The canonical form of a dialog is a JSON dict. The rule is simple: **any dict with a `"type"` key becomes a node; everything else is a literal.** A node is just a pydantic model. Anatomy:
+
+> **Gotcha — a literal dict that contains `"type"`.** The rule is applied recursively, so a payload like `{"type": "premium"}` is taken for a node and fails with `UnknownNodeTypeError` (or, worse, is misread if the string collides with a real node kind). Wrap such data in the `literal` escape-hatch node: `{"type": "literal", "value": {"type": "premium"}}`, or `b.lit({"type": "premium"})` in the builder. Its `value` is returned **verbatim at every depth** — the whole subtree becomes opaque literal data with nothing evaluated inside it (no paths, no nested nodes), so wrap only the minimal part that needs it, not an expression you still want evaluated.
+>
+> If the container has a `"type"` key **but some values must still be evaluated**, reach for the shallow `escape` node instead — `{"type": "escape", "entries": {"type": "premium", "count": {"type": "path", "path": "data.n"}}}`, or `b.escape({"type": "premium", "count": b.data_.n})`. It escapes **only this one level**: the container is kept as data (the `"type"` key survives), while each value is evaluated normally. `literal` = freeze the whole subtree; `escape` = keep the container, evaluate the values.
+
+```python
+from typing import Literal
+from aiogram_dialog_manager.spec import EvaluableNode, Value, evaluate_value, node_registry
+
+@node_registry.register                       # 4. register — the `type` default is the key
+class CoalesceNode(EvaluableNode):            # 1. EvaluableNode = usable in any expression
+    """First non-null option (like SQL COALESCE)."""
+
+    type: Literal["coalesce"] = "coalesce"    # 2. discriminator + registry key (unique string)
+    options: list[Value]                      # 3. `Value` fields accept a literal OR a nested node
+
+    async def evaluate(self, scope) -> object:            # called wherever a value is needed
+        for option in self.options:
+            value = await evaluate_value(option, scope)   # resolve literal-or-node uniformly
+            if value is not None:
+                return value
+        return None
+```
+
+The four things to know:
+
+1. **Base class.** `EvaluableNode` has `async evaluate(scope)` and can appear anywhere a value is accepted (button text, payload, `if` condition, …). `SpecNode` is a plain *data* node with no `evaluate` — used for structural declarations (window content kinds subclass it and build a prototype instead).
+2. **`type`.** A `Literal["..."]` with a default. That default is both the JSON discriminator and the registry key; it must be unique. `extra="forbid"` — unknown JSON keys are rejected.
+3. **Fields.** Annotate a field as **`Value`** if it may hold an expression (a literal *or* a nested node — nested dicts/lists are resolved automatically). Use a plain type (`str`, `int`, `Literal[...]`) for fields that must be static config. Never read a `Value` field directly in `evaluate` — always `await evaluate_value(field, scope)`, since it might be a node.
+4. **`evaluate(self, scope)`.** Returns a plain Python value. The `scope` gives you everything: `scope.resolve_path("data.x")` / `scope.context` / `scope.dialog` for data, `scope.runtime` for services (`functions`, `providers`, `translator`, `resolver`), and `scope.child(item=…)` to bind locals for sub-evaluation (how `foreach` exposes `item`/`index`).
+
+Because a node is a pydantic model, it round-trips to/from JSON for free.
+
+**Using a custom node.** In the builder/JSON, drop the dict anywhere a value is accepted or pass the node instance directly. From the **text DSL**, build it with the generic `node("type_name", field=expr, …)` constructor (see [Textual DSL](#textual-dsl)) — so a custom kind is reachable there too, just without dedicated syntax.
+
+```python
+# JSON / dict form
+{"type": "coalesce", "options": [{"type": "path", "path": "data.nickname"},
+                                 {"type": "path", "path": "data.name"},
+                                 "anonymous"]}
+
+# builder form — a node instance is a value like any other
+b.button("greet", CoalesceNode(options=[b.data_.nickname, b.data_.name, "anonymous"]))
+```
+
+**List semantics (for structural nodes).** In a list context — menu rows, text fragments, media items — an `evaluate` may return `OMIT` to drop itself (how `if` without `else` disappears) or `Spliced([...])` to inline several items (how `foreach`/`chunk` expand). Return a normal value for the common one-node-one-value case.
+
+All standard nodes — `path`, `op`, `t`, `foreach`, … — are implemented through this exact mechanism, so your own kinds are first-class. Mixing is free: within one dialog some windows can come from a spec and others from Python prototype classes — both live in the same registries.
+
+Window content types shipped in the first iteration: `text`, `photo`, `document`, `media_group`. The compact textual DSL that compiles into the same model is documented above under [Textual DSL](#textual-dsl).
 
 ---
 
@@ -779,11 +940,14 @@ src/aiogram_dialog_manager/
 ├── spec/                       # Declarative dialog specs
 │   ├── model.py                # DialogSpec / WindowSpec / MenuSpec (JSON-serializable core)
 │   ├── nodes.py                # expression & structural nodes (path, op, if, foreach, …)
-│   ├── content.py              # window content kinds + interpreting prototypes
-│   ├── use.py                  # use_button / use_menu / use_message nodes
+│   ├── content.py              # window content kinds (content-kind extension seam)
+│   ├── prototypes.py           # the four spec interpreters + SpecPrototypeFactory
+│   ├── scope.py                # EvalScope, SpecRuntime, SpecResolver
+│   ├── use.py                  # use_button / use_menu / use_message (lazy, via resolver)
 │   ├── compile.py              # compile_dialog, typed handles, registration
 │   ├── babel.py                # gettext extraction from serialized models
-│   └── builder.py              # Python builder + widgets (paginator)
+│   ├── builder.py              # Python builder + widgets (paginator)
+│   └── text/                   # textual DSL: parse_dialog_text + generated lexer/parser
 └── storage/                    # BaseStorage, MemoryStorage, RedisStorage
 ```
 

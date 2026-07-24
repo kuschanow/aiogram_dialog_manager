@@ -26,9 +26,6 @@ from aiogram_dialog_manager.prototype.message.voice import VoiceMessagePrototype
 
 logger = logging.getLogger(__name__)
 
-_EDIT_COMPATIBLE_PARAMS = frozenset({"parse_mode", "link_preview_options", "disable_web_page_preview"})
-_EDIT_CAPTION_PARAMS = frozenset({"parse_mode"})
-
 
 class DialogOperator:
     def __init__(self, dialog: DialogInstance, bot: Bot):
@@ -199,28 +196,9 @@ class DialogOperator:
         tg = message_record.telegram_message_instance
         inline_markup = reply_markup if isinstance(reply_markup, InlineKeyboardMarkup) else None
 
-        if isinstance(message_prototype, TextMessagePrototype):
-            edit_params = {k: v for k, v in effective_params.model_dump(exclude_unset=True).items() if k in _EDIT_COMPATIBLE_PARAMS}
-            result = await self._bot.edit_message_text(
-                chat_id=tg.chat.id,
-                message_id=tg.message_id,
-                text=instance.text,
-                entities=instance.entities,
-                reply_markup=inline_markup,
-                business_connection_id=tg.business_connection_id,
-                **edit_params,
-            )
-        else:
-            edit_params = {k: v for k, v in effective_params.model_dump(exclude_unset=True).items() if k in _EDIT_CAPTION_PARAMS}
-            result = await self._bot.edit_message_caption(
-                chat_id=tg.chat.id,
-                message_id=tg.message_id,
-                caption=instance.text,
-                caption_entities=instance.entities,
-                reply_markup=inline_markup,
-                business_connection_id=tg.business_connection_id,
-                **edit_params,
-            )
+        result = await message_prototype._do_edit(
+            self._bot, self, context, tg, instance, inline_markup, effective_params,
+        )
 
         if isinstance(result, Message):
             message_record.telegram_message_instance = result

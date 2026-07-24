@@ -20,7 +20,7 @@ from __future__ import annotations
 KEYWORDS = [
     "dialog", "window", "menu", "message", "button", "row", "defs",
     "foreach", "in", "if", "else", "chunk", "slice", "ref",
-    "t", "provider",
+    "t", "provider", "escape", "node",
     "and", "or", "not",
     "true", "false", "null",
 ]
@@ -204,6 +204,8 @@ primary -> provider_call
 primary -> ref_call
 primary -> slice_call
 primary -> proto_call
+primary -> escape_call
+primary -> node_call
 primary -> map
 primary -> LPAREN expr RPAREN
 primary -> LBRACK RBRACK
@@ -226,6 +228,13 @@ ref_call -> REF LPAREN expr RPAREN
 slice_call -> SLICE LPAREN arg_list RPAREN
 
 proto_call -> BUTTON LPAREN expr RPAREN
+
+escape_call -> ESCAPE map
+escape_call -> ESCAPE LPAREN RPAREN
+
+# generic escape hatch: build any registered node kind by type name + fields
+node_call -> NODE LPAREN expr RPAREN
+node_call -> NODE LPAREN expr COMMA pair_list RPAREN
 """
 
 # A bare-expression grammar (for string-interpolation holes). When the grammar

@@ -34,6 +34,7 @@ from aiogram_dialog_manager.spec.nodes import (
     ButtonSpec,
     CallNode,
     ChunkNode,
+    EscapeNode,
     ForeachNode,
     IfNode,
     LiteralNode,
@@ -141,6 +142,14 @@ def as_expr(value: Any) -> Expr:
 def lit(value: Any) -> Expr:
     """A verbatim literal (needed for dicts containing a ``"type"`` key)."""
     return Expr(LiteralNode(value=value))
+
+
+def escape(entries: dict[str, Any]) -> Expr:
+    """A plain object literal whose values are still evaluated — the shallow
+    counterpart to :func:`lit`. Use it when a map's keys include ``"type"`` but
+    some values are expressions: only the container is escaped, not the values.
+    """
+    return Expr(EscapeNode(entries=entries))
 
 
 def fn(name: str, *args: Any, **kwargs: Any) -> Expr:
@@ -279,11 +288,13 @@ def dialog(
         windows: dict[str, WindowSpec],
         defs: Optional[dict[str, Any]] = None,
         window_name_key: Optional[str] = None,
+        data: Optional[dict[str, Any]] = None,
+        config: Optional[dict[str, Any]] = None,
         version: int = 1,
 ) -> DialogSpec:
     return DialogSpec(
         version=version, name=name, windows=windows, defs=defs or {},
-        window_name_key=window_name_key,
+        window_name_key=window_name_key, data=data, config=config,
     )
 
 

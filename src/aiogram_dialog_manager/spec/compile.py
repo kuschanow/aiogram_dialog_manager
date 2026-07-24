@@ -25,22 +25,11 @@ from aiogram_dialog_manager.spec.functions import create_default_function_regist
 from aiogram_dialog_manager.spec.model import DialogSpec, WindowSpec
 from aiogram_dialog_manager.spec.node import SpecNode
 from aiogram_dialog_manager.spec.nodes import ButtonSpec, RefNode
-from aiogram_dialog_manager.spec.prototypes import SpecButtonPrototype, SpecMenuPrototype, SpecPrototypeMixin
+from aiogram_dialog_manager.spec.prototypes import SpecPrototypeFactory
 from aiogram_dialog_manager.spec.registration import register_spec_prototype
 from aiogram_dialog_manager.spec.registries import FunctionRegistry, ProviderRegistry
-from aiogram_dialog_manager.spec.scope import SpecRuntime, Translator
+from aiogram_dialog_manager.spec.scope import SpecResolver, SpecRuntime, Translator
 from aiogram_dialog_manager.spec.use import UseMenuNode, UseMenuPrototype, UseMessageContentSpec
-
-
-class SpecDialogPrototype(DialogPrototype):
-    """The dialog-level prototype of a compiled model (default data/config)."""
-
-    def __init__(self, name: str):
-        self._name = name
-
-    @property
-    def name(self) -> str:
-        return self._name
 
 
 class Namespace:
@@ -149,10 +138,11 @@ def _collect_window_buttons(window: WindowSpec, spec: DialogSpec, window_name: s
 class CompiledDialog:
     """The result of compilation: prototypes + typed handles + registration."""
 
-    def __init__(self, spec: DialogSpec, runtime: SpecRuntime):
+    def __init__(self, spec: DialogSpec, runtime: SpecRuntime, factory: SpecPrototypeFactory):
         self._spec = spec
         self._runtime = runtime
-        self._dialog_prototype = SpecDialogPrototype(spec.name)
+        self._factory = factory
+        self._dialog_prototype = factory.create_dialog(spec.name, runtime, spec.data, spec.config)
         self._windows = Namespace({
             window_name: self._compile_window(window_name, window)
             for window_name, window in spec.windows.items()
@@ -169,16 +159,16 @@ class CompiledDialog:
                         f"Window '{window_name}' uses message prototype '{window.content.name}', "
                         f"which controls its own {conflicting}; remove the window {conflicting}"
                     )
-        menu_prototype = None
+        menu_prototype: Optional[MenuPrototype] = None
         if isinstance(window.menu, UseMenuNode):
             menu_prototype = UseMenuPrototype(window.menu, self._runtime, window_name)
         elif window.menu is not None:
-            menu_prototype = SpecMenuPrototype(f"{message_name}:menu", window.menu, self._runtime, window_name)
-        message_prototype = window.content.create_prototype(
-            message_name, menu_prototype, self._runtime, window_name, window.data,
+            menu_prototype = self._factory.create_menu(f"{message_name}:menu", window.menu, self._runtime, window_name)
+        message_prototype = self._factory.create_message(
+            window.content, message_name, menu_prototype, self._runtime, window_name, window.data,
         )
         buttons = Namespace({
-            button_name: SpecButtonPrototype(
+            button_name: self._factory.create_button(
                 f"{message_name}:{button_name}", button_spec, self._runtime, window_name,
             )
             for button_name, button_spec in _collect_window_buttons(window, self._spec, window_name).items()
@@ -194,7 +184,7 @@ class CompiledDialog:
         return self._runtime
 
     @property
-    def dialog_prototype(self) -> SpecDialogPrototype:
+    def dialog_prototype(self) -> DialogPrototype:
         return self._dialog_prototype
 
     @property
@@ -204,13 +194,15 @@ class CompiledDialog:
     def register(self) -> "CompiledDialog":
         """Register every prototype in the shared registries (replace semantics
         for spec entries only). ``use``'d prototypes are already registered
-        under their own names and are skipped."""
+        under their own names and are skipped — decided by the spec kind, not
+        the prototype class, so custom factories register correctly too."""
         register_spec_prototype(DialogPrototype, self._dialog_prototype.name, self._dialog_prototype)
         for window_name in self._windows:
             window: CompiledWindow = self._windows[window_name]
-            if isinstance(window.message, SpecPrototypeMixin):
+            window_spec = self._spec.windows[window_name]
+            if not isinstance(window_spec.content, UseMessageContentSpec):
                 register_spec_prototype(BaseMessagePrototype, window.message.name, window.message)
-            if isinstance(window.menu, SpecMenuPrototype):
+            if window.menu is not None and not isinstance(window_spec.menu, UseMenuNode):
                 register_spec_prototype(MenuPrototype, window.menu.name, window.menu)
             for button_name in window.buttons:
                 button = window.buttons[button_name]
@@ -224,9 +216,19 @@ def compile_dialog(
         functions: Optional[FunctionRegistry] = None,
         providers: Optional[ProviderRegistry] = None,
         translator: Optional[Translator] = None,
+        prototypes: Optional[SpecPrototypeFactory] = None,
+        resolver: Optional[SpecResolver] = None,
         register: bool = False,
 ) -> CompiledDialog:
-    """Compile a dialog model (or its canonical dict form) into prototypes."""
+    """Compile a dialog model (or its canonical dict form) into prototypes.
+
+    Pass ``prototypes`` (a :class:`SpecPrototypeFactory` subclass) to swap the
+    interpreter of any of the four spec primitives; the default factory builds
+    the standard ``Spec*Prototype`` classes. Pass ``resolver`` (a
+    :class:`~aiogram_dialog_manager.spec.scope.SpecResolver` subclass) to gate
+    or customise how ``use`` references (``button``/``menu``/``message``)
+    resolve registered prototypes at render time.
+    """
     if not isinstance(spec, DialogSpec):
         spec = DialogSpec.model_validate(spec)
     _validate_references(spec)
@@ -238,8 +240,9 @@ def compile_dialog(
         providers=providers if providers is not None else ProviderRegistry(),
         translator=translator,
         window_name_key=spec.window_name_key,
+        resolver=resolver if resolver is not None else SpecResolver(),
     )
-    compiled = CompiledDialog(spec, runtime)
+    compiled = CompiledDialog(spec, runtime, prototypes if prototypes is not None else SpecPrototypeFactory())
     if register:
         compiled.register()
     return compiled

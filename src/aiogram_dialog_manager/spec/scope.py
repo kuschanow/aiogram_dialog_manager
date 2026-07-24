@@ -12,7 +12,7 @@ type errors during traversal raise — a silent ``None`` would hide script bugs.
 from dataclasses import dataclass, field, replace
 from typing import Any, Callable, Optional, TYPE_CHECKING
 
-from aiogram_dialog_manager.spec.errors import ExpressionEvaluationError
+from aiogram_dialog_manager.spec.errors import ExpressionEvaluationError, UnknownPrototypeError
 from aiogram_dialog_manager.spec.registries import FunctionRegistry, ProviderRegistry
 
 if TYPE_CHECKING:
@@ -23,6 +23,32 @@ Translator = Callable[[str, Optional[str]], str]
 
 _DATA_NAMESPACE = "data"
 _CTX_NAMESPACE = "ctx"
+
+
+class SpecResolver:
+    """Resolves a registered prototype by ``type_name`` — the single, swappable
+    seam every ``use`` reference (``button``/``menu``/``message``) goes through
+    at render time.
+
+    Subclass and override :meth:`resolve` to gate access (e.g. by script author
+    and rights), plug a scoped registry, or log — then pass the instance to
+    ``compile_dialog(resolver=...)``. The typical override runs a check first
+    and delegates the actual lookup to ``super().resolve(...)``.
+
+    Python prototypes are stored as classes and instantiated here (they must
+    have a no-argument constructor to be usable from specs); spec entries are
+    stored as ready instances.
+    """
+
+    def resolve(self, base_cls: type, name: str, scope: "Optional[EvalScope]") -> Any:
+        try:
+            entry = base_cls._registry[name]
+        except KeyError:
+            raise UnknownPrototypeError(
+                f"{base_cls.__name__} name '{name}' is not registered; "
+                f"'use' nodes require the target prototype to be registered"
+            ) from None
+        return entry() if isinstance(entry, type) else entry
 
 
 @dataclass(frozen=True)
@@ -37,6 +63,9 @@ class SpecRuntime:
     #: When set, every spec window stamps its own name into the message data
     #: under this key (the "window name is the state" pattern of wizards).
     window_name_key: Optional[str] = None
+    #: How ``use`` references resolve registered prototypes at render time;
+    #: override to gate access or plug a custom registry.
+    resolver: SpecResolver = field(default_factory=SpecResolver)
 
 
 @dataclass(frozen=True)

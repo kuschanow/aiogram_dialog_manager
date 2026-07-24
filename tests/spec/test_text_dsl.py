@@ -34,6 +34,13 @@ def test_dialog_settings():
     assert spec.version == 1
 
 
+def test_dialog_data_and_config():
+    spec = p('dialog d (data=(step=0, uid=ctx.uid), config=(allow_reply_lookup=true)) '
+             '{ window w { text: "hi" } }')
+    assert spec.data["step"] == 0
+    assert spec.config["allow_reply_lookup"] is True
+
+
 def test_dialog_requires_name():
     with pytest.raises(DSLSyntaxError, match="dialog must have a name"):
         p('dialog { window w { text: "x" } }')
@@ -650,6 +657,57 @@ def test_foreach_index_var_runtime():
     scope = EvalScope(runtime=SpecRuntime(dialog_name="d"), dialog=_Dlg(), context={})
     result = asyncio.new_event_loop().run_until_complete(node.evaluate(scope))
     assert result.items == [0, 1, 2]
+
+
+def _eval_expr(node, data=None):
+    import asyncio
+
+    from aiogram_dialog_manager.spec.scope import EvalScope, SpecRuntime
+
+    class _Dlg:
+        pass
+
+    dlg = _Dlg()
+    dlg.data = data or {}
+    scope = EvalScope(runtime=SpecRuntime(dialog_name="d"), dialog=dlg, context={})
+    return asyncio.new_event_loop().run_until_complete(node.evaluate(scope))
+
+
+def test_escape_keeps_type_key_and_evaluates_values():
+    from aiogram_dialog_manager.spec.nodes import EscapeNode
+
+    node = win('text: escape(type="premium", count=data.n)').windows["w"].content.text
+    assert isinstance(node, EscapeNode)
+    assert _eval_expr(node, {"n": 3}) == {"type": "premium", "count": 3}
+
+
+def test_escape_empty():
+    from aiogram_dialog_manager.spec.nodes import EscapeNode
+
+    node = win("text: escape()").windows["w"].content.text
+    assert isinstance(node, EscapeNode)
+    assert _eval_expr(node) == {}
+
+
+def test_node_generic_constructor():
+    from aiogram_dialog_manager.spec.nodes import OpNode
+
+    node = win('text: node("op", op="+", args=[1, data.n])').windows["w"].content.text
+    assert isinstance(node, OpNode)
+    assert _eval_expr(node, {"n": 4}) == 5
+
+
+def test_node_without_fields():
+    from aiogram_dialog_manager.spec.nodes import LiteralNode
+
+    node = win('text: node("literal")').windows["w"].content.text
+    assert isinstance(node, LiteralNode)
+    assert _eval_expr(node) is None
+
+
+def test_node_rejects_type_field():
+    with pytest.raises(DSLSyntaxError, match=r"node\(\) takes the type"):
+        win('text: node("op", type="x", op="+", args=[1, 2])')
 
 
 # ── full round-trip + compile ────────────────────────────────────────────────
