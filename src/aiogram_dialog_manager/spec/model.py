@@ -9,6 +9,7 @@ from typing import Annotated, Any, Literal, Optional, Union
 
 from pydantic import AfterValidator, BaseModel, BeforeValidator, ConfigDict, Field, field_validator
 
+from aiogram_dialog_manager.instance.dialog import DialogConfig
 from aiogram_dialog_manager.spec.content import BaseContentSpec
 from aiogram_dialog_manager.spec.node import SpecNode, Value, node_registry, resolve_value
 from aiogram_dialog_manager.spec.nodes import IDENTIFIER_PATTERN
@@ -100,6 +101,12 @@ class DialogSpec(BaseModel):
     #: under this key — the "window name is the state" pattern of wizards
     #: (``MessageFilter`` state routing without repeating it in every send).
     window_name_key: Optional[str] = Field(default=None, min_length=1)
+    #: The dialog's default initial data (values are expressions); the render
+    #: context is merged on top, exactly like ``WindowSpec.data``.
+    data: Optional[dict[str, Value]] = None
+    #: The dialog's :class:`DialogConfig` fields (values are expressions);
+    #: keys are validated against the config schema at model time.
+    config: Optional[dict[str, Value]] = None
 
     @field_validator("version")
     @classmethod
@@ -107,6 +114,15 @@ class DialogSpec(BaseModel):
         if version != SPEC_VERSION:
             raise ValueError(f"Unsupported spec version {version}; supported version is {SPEC_VERSION}")
         return version
+
+    @field_validator("config")
+    @classmethod
+    def _check_config_keys(cls, config: Optional[dict[str, Any]]) -> Optional[dict[str, Any]]:
+        if config:
+            unknown = set(config) - set(DialogConfig.model_fields)
+            if unknown:
+                raise ValueError(f"Unknown dialog config field(s): {', '.join(sorted(unknown))}")
+        return config
 
     def to_dict(self) -> dict[str, Any]:
         """The canonical JSON-compatible form of the dialog."""

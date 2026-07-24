@@ -34,6 +34,7 @@ from aiogram_dialog_manager.spec.nodes import (
     ButtonSpec,
     CallNode,
     ChunkNode,
+    EscapeNode,
     ForeachNode,
     IfNode,
     LiteralNode,
@@ -143,6 +144,14 @@ def lit(value: Any) -> Expr:
     return Expr(LiteralNode(value=value))
 
 
+def escape(entries: dict[str, Any]) -> Expr:
+    """A plain object literal whose values are still evaluated — the shallow
+    counterpart to :func:`lit`. Use it when a map's keys include ``"type"`` but
+    some values are expressions: only the container is escaped, not the values.
+    """
+    return Expr(EscapeNode(entries=entries))
+
+
 def fn(name: str, *args: Any, **kwargs: Any) -> Expr:
     return Expr(CallNode(name=name, args=list(args), kwargs=kwargs))
 
@@ -185,8 +194,11 @@ def if_(when: Any, then: Any, else_: Any = _UNSET) -> IfNode:
     return IfNode(when=when, then=then, else_=else_)
 
 
-def foreach(over: Any, body: Any) -> ForeachNode:
-    return ForeachNode(over=over, body=body)
+def foreach(over: Any, body: Any, *, var: Optional[str] = None, index_var: Optional[str] = None) -> ForeachNode:
+    """Iterate ``over``, splicing ``body`` per element. ``item``/``index`` are
+    always bound; ``var``/``index_var`` add aliases (so a nested ``foreach`` can
+    still reach the outer element)."""
+    return ForeachNode(over=over, body=body, var=var, index_var=index_var)
 
 
 def chunk(size: Any, *items: Any) -> ChunkNode:
@@ -276,11 +288,13 @@ def dialog(
         windows: dict[str, WindowSpec],
         defs: Optional[dict[str, Any]] = None,
         window_name_key: Optional[str] = None,
+        data: Optional[dict[str, Any]] = None,
+        config: Optional[dict[str, Any]] = None,
         version: int = 1,
 ) -> DialogSpec:
     return DialogSpec(
         version=version, name=name, windows=windows, defs=defs or {},
-        window_name_key=window_name_key,
+        window_name_key=window_name_key, data=data, config=config,
     )
 
 

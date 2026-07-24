@@ -24,6 +24,8 @@ _CAPTION_MEDIA_PARAMS = frozenset({
 })
 _BASE_MEDIA_PARAMS = _CAPTION_MEDIA_PARAMS - {"parse_mode"}
 _NO_SUGGESTED_POST_PARAMS = _BASE_MEDIA_PARAMS - {"suggested_post_parameters"}
+_EDIT_COMPATIBLE_PARAMS = frozenset({"parse_mode", "link_preview_options", "disable_web_page_preview"})
+_EDIT_CAPTION_PARAMS = frozenset({"parse_mode"})
 
 
 class TextContent(BaseModel):
@@ -82,6 +84,27 @@ class BaseMessagePrototype(ABC):
 class BaseCaptionMediaPrototype(BaseMessagePrototype, ABC):
     async def get_text_content(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> TextContent:
         return TextContent()
+
+    async def _do_edit(
+            self,
+            bot: Bot,
+            dialog: "DialogOperator",
+            context: Optional[dict[str, Any]],
+            tg: Message,
+            instance: BotMessageInstance,
+            inline_markup: Optional[InlineKeyboardMarkup],
+            effective_params: SendParams,
+    ) -> Union[Message, bool]:
+        edit_params = {k: v for k, v in effective_params.model_dump(exclude_unset=True).items() if k in _EDIT_CAPTION_PARAMS}
+        return await bot.edit_message_caption(
+            chat_id=tg.chat.id,
+            message_id=tg.message_id,
+            caption=instance.text,
+            caption_entities=instance.entities,
+            reply_markup=inline_markup,
+            business_connection_id=tg.business_connection_id,
+            **edit_params,
+        )
 
     async def get_instance(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> BotMessageInstance:
         text_content = await self.get_text_content(dialog, context)

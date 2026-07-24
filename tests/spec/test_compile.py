@@ -1,8 +1,9 @@
 """Tests for compilation, registration and the interpreting prototypes."""
 import pytest
+from pydantic import ValidationError
 
 from aiogram_dialog_manager.filter import ButtonFilter
-from aiogram_dialog_manager.instance.dialog import DialogInstance
+from aiogram_dialog_manager.instance.dialog import DialogConfig, DialogInstance
 from aiogram_dialog_manager.instance.menu import MenuInstance
 from aiogram_dialog_manager.instance.message import MessageTarget
 from aiogram_dialog_manager.prototype.base import BaseMessagePrototype
@@ -23,11 +24,16 @@ from aiogram_dialog_manager.spec import (
     iter_spec_nodes,
     register_spec_prototype,
 )
-from aiogram_dialog_manager.spec import registration
-from aiogram_dialog_manager.spec.content import (
+from aiogram_dialog_manager.spec import (
+    SpecButtonPrototype,
+    SpecDialogPrototype,
     SpecDocumentMessagePrototype,
     SpecMediaGroupMessagePrototype,
+    SpecMenuPrototype,
     SpecPhotoMessagePrototype,
+    SpecPrototypeFactory,
+    SpecTextMessagePrototype,
+    registration,
 )
 from aiogram_dialog_manager.spec.registries import ProviderRegistry
 from tests.spec.conftest import FakeDialog
@@ -468,3 +474,101 @@ class TestWindowData:
         compiled = self.make_compiled(dialog_extra={"window_name_key": "state"})
         instance = await compiled.windows.step_one.message.get_instance(FakeDialog(), None)
         assert instance.data == {"state": "step_one"}
+
+
+class TestDialogData:
+    async def test_data_defaults_to_context(self):
+        compiled = compile_dialog(make_spec())
+        assert await compiled.dialog_prototype.get_data({"a": 1}) == {"a": 1}
+
+    async def test_data_evaluated_and_context_wins(self):
+        compiled = compile_dialog(make_spec(data={
+            "step": 0,
+            "uid": {"type": "path", "path": "ctx.uid"},
+        }))
+        data = await compiled.dialog_prototype.get_data({"uid": 7, "step": 5})
+        assert data == {"step": 5, "uid": 7}
+
+    async def test_config_defaults_without_spec(self):
+        compiled = compile_dialog(make_spec())
+        assert await compiled.dialog_prototype.get_config(None) == DialogConfig()
+
+    async def test_config_evaluated(self):
+        compiled = compile_dialog(make_spec(config={
+            "allow_reply_lookup": True,
+            "index_bot_messages": {"type": "path", "path": "ctx.idx"},
+        }))
+        cfg = await compiled.dialog_prototype.get_config({"idx": True})
+        assert cfg.allow_reply_lookup is True
+        assert cfg.index_bot_messages is True
+        assert cfg.save_bot_message_nodes is True  # untouched default
+
+    async def test_instance_carries_data_and_config(self):
+        compiled = compile_dialog(make_spec(
+            data={"step": 1},
+            config={"allow_reply_lookup": True},
+        ))
+        instance = await compiled.dialog_prototype.get_instance(user_id=1, chat_id=2)
+        assert instance.data == {"step": 1}
+        assert instance.config.allow_reply_lookup is True
+
+    def test_unknown_config_field_rejected(self):
+        with pytest.raises(ValidationError, match="Unknown dialog config field"):
+            make_spec(config={"nope": True})
+
+
+class _MarkedDialog(SpecDialogPrototype):
+    pass
+
+
+class _MarkedMenu(SpecMenuPrototype):
+    pass
+
+
+class _MarkedButton(SpecButtonPrototype):
+    pass
+
+
+class _MarkedText(SpecTextMessagePrototype):
+    pass
+
+
+class _CustomFactory(SpecPrototypeFactory):
+    """Swaps the interpreter of every one of the four primitives."""
+
+    def create_dialog(self, name, runtime, data=None, config=None):
+        return _MarkedDialog(name, runtime, data, config)
+
+    def create_menu(self, name, spec, runtime, window_name):
+        return _MarkedMenu(name, spec, runtime, window_name)
+
+    def create_button(self, name, spec, runtime, window_name):
+        return _MarkedButton(name, spec, runtime, window_name)
+
+    def create_message(self, content, name, menu_prototype, runtime, window_name, window_data=None):
+        return _MarkedText(name, content, menu_prototype, runtime, window_name, window_data)
+
+
+class TestPrototypeFactory:
+    def test_hooks_swap_all_four_interpreters(self):
+        compiled = compile_dialog(make_spec(), prototypes=_CustomFactory())
+        assert isinstance(compiled.dialog_prototype, _MarkedDialog)
+        assert isinstance(compiled.windows.main.message, _MarkedText)
+        assert isinstance(compiled.windows.main.menu, _MarkedMenu)
+        assert isinstance(compiled.windows.main.buttons.save, _MarkedButton)
+
+    def test_default_factory_used_when_omitted(self):
+        compiled = compile_dialog(make_spec())
+        assert type(compiled.dialog_prototype) is SpecDialogPrototype
+        assert type(compiled.windows.main.buttons.save) is SpecButtonPrototype
+
+    async def test_swapped_message_still_renders(self):
+        compiled = compile_dialog(make_spec(), prototypes=_CustomFactory())
+        content = await compiled.windows.main.message.get_text_content(FakeDialog({"name": "R"}), None)
+        assert content.text == "Hello, R"
+
+    def test_custom_prototypes_register_under_deterministic_names(self, clean_registries):
+        compiled = compile_dialog(make_spec(), prototypes=_CustomFactory(), register=True)
+        assert BaseMessagePrototype._registry["settings:main"] is compiled.windows.main.message
+        assert MenuPrototype._registry["settings:main:menu"] is compiled.windows.main.menu
+        assert isinstance(DialogPrototype._registry["settings"], _MarkedDialog)

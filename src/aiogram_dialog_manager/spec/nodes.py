@@ -27,7 +27,11 @@ from aiogram_dialog_manager.spec.node import (
 )
 from aiogram_dialog_manager.spec.scope import EvalScope
 
-IDENTIFIER_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]*$"
+# A normal identifier, optionally followed by a ``#N`` auto-name marker. The
+# suffix is only ever produced by the textual DSL for anonymous declarations
+# (windows/buttons nobody references); ``#`` cannot start or appear mid-name, so
+# hand-written names stay strict and the marker unambiguously flags auto-names.
+IDENTIFIER_PATTERN = r"^[A-Za-z_][A-Za-z0-9_]*(#[0-9]+)?$"
 
 _EVALUATION_ERRORS = (TypeError, ValueError, KeyError, IndexError, AttributeError, ZeroDivisionError)
 
@@ -45,6 +49,24 @@ class LiteralNode(EvaluableNode):
 
     async def evaluate(self, scope: EvalScope) -> Any:
         return self.value
+
+
+@node_registry.register
+class EscapeNode(EvaluableNode):
+    """A plain object whose key set may include ``"type"``.
+
+    A dict with a ``"type"`` key placed in a ``Value`` field is otherwise taken
+    for a node. This wraps such a map so the **container** is kept as data while
+    its values are still evaluated — unlike ``literal``, which freezes the whole
+    subtree. Only this one level is escaped; the values stay ordinary
+    expressions.
+    """
+
+    type: Literal["escape"] = "escape"
+    entries: dict[str, Value] = Field(default_factory=dict)
+
+    async def evaluate(self, scope: EvalScope) -> dict:
+        return {key: await evaluate_value(value, scope) for key, value in self.entries.items()}
 
 
 @node_registry.register
@@ -246,6 +268,12 @@ class ForeachNode(EvaluableNode):
     type: Literal["foreach"] = "foreach"
     over: Value
     body: Value
+    #: Optional aliases for the element/index (textual DSL ``foreach x, i in ...``).
+    #: ``item``/``index`` stay bound as defaults; aliases are bound in addition,
+    #: so a nested ``foreach`` with distinct aliases can still reach the outer
+    #: element (grammar decision D10).
+    var: Optional[str] = None
+    index_var: Optional[str] = None
 
     async def evaluate(self, scope: EvalScope) -> Spliced:
         items = await evaluate_value(self.over, scope)
@@ -255,7 +283,12 @@ class ForeachNode(EvaluableNode):
             )
         rendered: list = []
         for index, item in enumerate(items):
-            await render_into(rendered, self.body, scope.child(item=item, index=index))
+            local: dict[str, Any] = {"item": item, "index": index}
+            if self.var is not None:
+                local[self.var] = item
+            if self.index_var is not None:
+                local[self.index_var] = index
+            await render_into(rendered, self.body, scope.child(**local))
         return Spliced(rendered)
 
 
