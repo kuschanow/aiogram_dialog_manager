@@ -7,7 +7,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "aiogram_dialog_manager"
-version = "2.8.0"
+version = "2.9.0"
 authors = [
     { name = "kuschanow", email = "kuschanow@gmail.com" }
 ]
@@ -29,7 +29,9 @@ asyncio_mode = "auto"
 
 [tool.coverage.run]
 source = ["src/aiogram_dialog_manager"]
-omit = []
+# Generated DSL handlers (see tools/gen_text_dsl.py) are compiled artifacts, not
+# hand-written code — exercised via the DSL tests but not line-covered.
+omit = ["*/spec/text/_generated/*"]
 
 [tool.coverage.report]
 fail_under = 100

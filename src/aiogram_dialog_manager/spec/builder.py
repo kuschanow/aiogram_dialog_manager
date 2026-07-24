@@ -185,8 +185,11 @@ def if_(when: Any, then: Any, else_: Any = _UNSET) -> IfNode:
     return IfNode(when=when, then=then, else_=else_)
 
 
-def foreach(over: Any, body: Any) -> ForeachNode:
-    return ForeachNode(over=over, body=body)
+def foreach(over: Any, body: Any, *, var: Optional[str] = None, index_var: Optional[str] = None) -> ForeachNode:
+    """Iterate ``over``, splicing ``body`` per element. ``item``/``index`` are
+    always bound; ``var``/``index_var`` add aliases (so a nested ``foreach`` can
+    still reach the outer element)."""
+    return ForeachNode(over=over, body=body, var=var, index_var=index_var)
 
 
 def chunk(size: Any, *items: Any) -> ChunkNode:
