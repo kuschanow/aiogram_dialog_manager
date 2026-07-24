@@ -192,8 +192,11 @@ class Transformer:
         content = self._window_content(node, fields, media_groups, explicit_content)
 
         data = None
+        message_name = None
         if "data" in config:
             data = self._map_value_to_dict(config.pop("data"), node, "data")
+        if "message_name" in config:
+            message_name = self._literal_str(config.pop("message_name"), node, "message_name")
         if "send_params" in config:
             send_params = self._map_value_to_dict(config.pop("send_params"), node, "send_params")
             if explicit_content is not None:
@@ -204,7 +207,7 @@ class Transformer:
         if config:
             raise _err(node, f"unknown window setting(s): {', '.join(sorted(config))}")
 
-        return name, WindowSpec(content=content, menu=menu, data=data)
+        return name, WindowSpec(content=content, menu=menu, data=data, message_name=message_name)
 
     def _window_content(self, node: Any, fields: dict, media_groups: list, explicit: Any) -> Any:
         has_sugar = bool(fields) or bool(media_groups)
@@ -403,9 +406,12 @@ class Transformer:
         data = self._as_dict(config.pop("data", None), node, "data")
         inline = self._as_dict(config.pop("inline", None), node, "inline")
         common = self._as_dict(config.pop("common", None), node, "common")
+        type_name = None
+        if "type_name" in config:
+            type_name = self._literal_str(config.pop("type_name"), node, f"button '{name}' type_name")
         if config:
             raise _err(node, f"unknown button field(s): {', '.join(sorted(config))}")
-        return ButtonSpec(name=name, text=text, data=data or {}, inline=inline, common=common)
+        return ButtonSpec(name=name, text=text, data=data or {}, inline=inline, common=common, type_name=type_name)
 
     def _if(self, node: Any, block_builder: Callable[[Any], list]) -> IfNode:
         # IF expr block (ELSE block)?

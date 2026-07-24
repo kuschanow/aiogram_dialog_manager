@@ -228,8 +228,9 @@ def button(
         data: Optional[dict[str, Any]] = None,
         inline: Optional[dict[str, Any]] = None,
         common: Optional[dict[str, Any]] = None,
+        type_name: Optional[str] = None,
 ) -> ButtonSpec:
-    return ButtonSpec(name=name, text=text, data=data or {}, inline=inline, common=common)
+    return ButtonSpec(name=name, text=text, data=data or {}, inline=inline, common=common, type_name=type_name)
 
 
 def menu(
@@ -302,8 +303,9 @@ def window(
         menu: Optional[Union[MenuSpec, UseMenuNode]] = None,
         *,
         data: Optional[dict[str, Any]] = None,
+        message_name: Optional[str] = None,
 ) -> WindowSpec:
-    return WindowSpec(content=content, menu=menu, data=data)
+    return WindowSpec(content=content, menu=menu, data=data, message_name=message_name)
 
 
 def dialog(

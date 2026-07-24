@@ -177,7 +177,14 @@ class TestButtonSpec:
     async def test_type_name_without_window(self, make_scope):
         scope = make_scope(window_name=None)
         spec = ButtonSpec(name="save", text="Save")
-        assert spec.type_name(scope) == "dlg:save"
+        assert spec.resolve_type_name(scope) == "dlg:save"
+
+    async def test_explicit_type_name_override(self, make_scope):
+        scope = make_scope()
+        spec = ButtonSpec(name="save", text="Save", type_name="cancel")
+        assert spec.resolve_type_name(scope) == "cancel"
+        instance = await spec.evaluate(scope)
+        assert instance.type_name == "cancel"
 
     async def test_text_fragments_joined(self, make_scope):
         scope = make_scope(data={"n": 3})

@@ -125,6 +125,8 @@ class TestStructuralHelpers:
         assert built.data == {"x": 1}
         assert built.inline == {"url": "https://e.com"}
         assert b.button("simple", "S").data == {}
+        assert b.button("simple", "S").type_name is None
+        assert b.button("fresh", "F", type_name="cancel").type_name == "cancel"
 
 
 class TestContentAndModelHelpers:
@@ -157,6 +159,10 @@ class TestContentAndModelHelpers:
         assert isinstance(spec.windows["main"], WindowSpec)
         assert isinstance(spec.windows["main"].menu, MenuSpec)
         assert isinstance(spec.defs["back"], ButtonSpec)
+
+    def test_window_message_name_override(self):
+        assert b.window(b.text("hi")).message_name is None
+        assert b.window(b.text("hi"), message_name="legacy_topic").message_name == "legacy_topic"
 
     def test_menu_reply_parameters(self):
         built = b.menu(b.row(b.button("ok", "OK")), keyboard_type="reply", reply_parameters={"selective": True})

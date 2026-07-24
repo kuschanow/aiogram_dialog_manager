@@ -23,7 +23,7 @@ from aiogram_dialog_manager.prototype.menu import MenuPrototype
 from aiogram_dialog_manager.spec.errors import SpecValidationError
 from aiogram_dialog_manager.spec.functions import create_default_function_registry
 from aiogram_dialog_manager.spec.model import DialogSpec, WindowSpec
-from aiogram_dialog_manager.spec.node import SpecNode
+from aiogram_dialog_manager.spec.node import SpecNode, resolve_value
 from aiogram_dialog_manager.spec.nodes import ButtonSpec, RefNode
 from aiogram_dialog_manager.spec.prototypes import SpecPrototypeFactory
 from aiogram_dialog_manager.spec.registration import register_spec_prototype
@@ -80,19 +80,19 @@ def iter_spec_nodes(value: Any) -> Iterator[SpecNode]:
             yield from iter_spec_nodes(item)
 
 
-def _validate_references(spec: DialogSpec) -> None:
-    for scope_name, root in (("windows", spec.windows), ("defs", spec.defs)):
+def _validate_references(roots: dict[str, Any], defs: dict[str, Any]) -> None:
+    for scope_name, root in roots.items():
         for node in iter_spec_nodes(root):
-            if isinstance(node, RefNode) and node.name not in spec.defs:
+            if isinstance(node, RefNode) and node.name not in defs:
                 raise SpecValidationError(
                     f"Reference '{node.name}' (used in {scope_name}) is not present in defs"
                 )
 
 
-def _validate_def_cycles(spec: DialogSpec) -> None:
+def _validate_def_cycles(defs: dict[str, Any]) -> None:
     edges = {
         name: {node.name for node in iter_spec_nodes(body) if isinstance(node, RefNode)}
-        for name, body in spec.defs.items()
+        for name, body in defs.items()
     }
 
     visiting: set[str] = set()
@@ -114,7 +114,7 @@ def _validate_def_cycles(spec: DialogSpec) -> None:
         visit(name, [])
 
 
-def _collect_window_buttons(window: WindowSpec, spec: DialogSpec, window_name: str) -> dict[str, ButtonSpec]:
+def _collect_window_buttons(window: WindowSpec, defs: dict[str, Any], window_name: str) -> dict[str, ButtonSpec]:
     found: dict[str, ButtonSpec] = {}
     visited_refs: set[str] = set()
 
@@ -129,7 +129,7 @@ def _collect_window_buttons(window: WindowSpec, spec: DialogSpec, window_name: s
                     )
             elif isinstance(node, RefNode) and node.name not in visited_refs:
                 visited_refs.add(node.name)
-                visit(spec.defs[node.name])
+                visit(defs[node.name])
 
     visit(window)
     return found
@@ -149,11 +149,15 @@ class CompiledDialog:
         })
 
     def _compile_window(self, window_name: str, window: WindowSpec) -> CompiledWindow:
-        message_name = f"{self._spec.name}:{window_name}"
+        message_name = window.message_name or f"{self._spec.name}:{window_name}"
         if isinstance(window.content, UseMessageContentSpec):
-            # The used prototype controls its own menu and data — a window
-            # declaring either alongside would silently lose them.
-            for conflicting, present in (("menu", window.menu is not None), ("data", window.data is not None)):
+            # The used prototype controls its own menu, data and name — a window
+            # declaring any alongside would silently lose them.
+            for conflicting, present in (
+                ("menu", window.menu is not None),
+                ("data", window.data is not None),
+                ("message_name", window.message_name is not None),
+            ):
                 if present:
                     raise SpecValidationError(
                         f"Window '{window_name}' uses message prototype '{window.content.name}', "
@@ -171,7 +175,7 @@ class CompiledDialog:
             button_name: self._factory.create_button(
                 f"{message_name}:{button_name}", button_spec, self._runtime, window_name,
             )
-            for button_name, button_spec in _collect_window_buttons(window, self._spec, window_name).items()
+            for button_name, button_spec in _collect_window_buttons(window, self._spec.defs, window_name).items()
         })
         return CompiledWindow(name=window_name, message=message_prototype, menu=menu_prototype, buttons=buttons)
 
@@ -231,8 +235,8 @@ def compile_dialog(
     """
     if not isinstance(spec, DialogSpec):
         spec = DialogSpec.model_validate(spec)
-    _validate_references(spec)
-    _validate_def_cycles(spec)
+    _validate_references({"windows": spec.windows, "defs": spec.defs}, spec.defs)
+    _validate_def_cycles(spec.defs)
     runtime = SpecRuntime(
         dialog_name=spec.name,
         defs=spec.defs,
@@ -246,3 +250,76 @@ def compile_dialog(
     if register:
         compiled.register()
     return compiled
+
+
+def compile_message(
+        content: Any, *, name: str,
+        menu: Any = None,
+        data: Optional[dict[str, Any]] = None,
+        defs: Optional[dict[str, Any]] = None,
+        window_name: Optional[str] = None,
+        functions: Optional[FunctionRegistry] = None,
+        providers: Optional[ProviderRegistry] = None,
+        translator: Optional[Translator] = None,
+        prototypes: Optional[SpecPrototypeFactory] = None,
+        resolver: Optional[SpecResolver] = None,
+        register: bool = False,
+) -> BaseMessagePrototype:
+    """Compile a single message spec into a prototype — standalone, without
+    wrapping it in a throwaway one-window ``dialog(...)``.
+
+    For messages that are not their own dialog (rendered by ``edit_message``
+    *into* another dialog). The prototype's ``type_name`` is exactly ``name``
+    (author-controlled, so a legacy name can be preserved across a deploy), and
+    its button/menu names are derived from it (``{name}:menu`` / ``{name}:btn``).
+    ``content``/``menu``/``data``/``defs`` mirror a window spec; the remaining
+    keyword arguments mirror :func:`compile_dialog`. Pass ``register=True`` to
+    register the message (and its menu/buttons) under those names.
+    """
+    window = WindowSpec(content=content, menu=menu, data=data)
+    resolved_defs = {key: resolve_value(value) for key, value in (defs or {}).items()}
+    _validate_references({"message": window, "defs": resolved_defs}, resolved_defs)
+    _validate_def_cycles(resolved_defs)
+
+    runtime = SpecRuntime(
+        dialog_name=name,
+        defs=resolved_defs,
+        functions=functions if functions is not None else create_default_function_registry(),
+        providers=providers if providers is not None else ProviderRegistry(),
+        translator=translator,
+        window_name_key=None,
+        resolver=resolver if resolver is not None else SpecResolver(),
+    )
+    factory = prototypes if prototypes is not None else SpecPrototypeFactory()
+
+    if isinstance(window.content, UseMessageContentSpec):
+        for conflicting, present in (("menu", window.menu is not None), ("data", window.data is not None)):
+            if present:
+                raise SpecValidationError(
+                    f"compile_message uses message prototype '{window.content.name}', "
+                    f"which controls its own {conflicting}; remove the {conflicting}"
+                )
+
+    menu_prototype: Optional[MenuPrototype] = None
+    if isinstance(window.menu, UseMenuNode):
+        menu_prototype = UseMenuPrototype(window.menu, runtime, window_name)
+    elif window.menu is not None:
+        menu_prototype = factory.create_menu(f"{name}:menu", window.menu, runtime, window_name)
+
+    message_prototype = factory.create_message(
+        window.content, name, menu_prototype, runtime, window_name, window.data,
+    )
+    buttons = {
+        button_name: factory.create_button(f"{name}:{button_name}", button_spec, runtime, window_name)
+        for button_name, button_spec in _collect_window_buttons(window, resolved_defs, window_name).items()
+    }
+
+    if register:
+        if not isinstance(window.content, UseMessageContentSpec):
+            register_spec_prototype(BaseMessagePrototype, message_prototype.name, message_prototype)
+        if menu_prototype is not None and not isinstance(window.menu, UseMenuNode):
+            register_spec_prototype(MenuPrototype, menu_prototype.name, menu_prototype)
+        for button in buttons.values():
+            register_spec_prototype(ButtonPrototype, button.name, button)
+
+    return message_prototype

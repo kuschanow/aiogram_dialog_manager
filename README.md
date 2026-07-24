@@ -691,6 +691,7 @@ b.window(b.use_message("error_msg"))                        # existing message p
 
 - The used prototype **keeps its own `type_name`** — existing `ButtonFilter`/handler wiring works without changes.
 - `context` values are expressions merged over the render context, so `foreach` can parameterize a used button per item.
+- **Escape hatch — catching a fresh inline button with a short-name filter.** An inline `b.button` is namespaced `{dialog}:{window}:{name}`, so a bare-name `ButtonFilter("save")` won't catch it (this is why handler-backed buttons normally go through `use_button`). Pass `b.button("save", "Save", type_name="save")` to declare a fresh button inline *and* have it caught by an existing short-name handler — the deliberate opt-out of the namespacing.
 - All three (`use_button`/`use_menu`/`use_message`) resolve **lazily at render time** through the dialog's resolver (see below): the target may be registered after the spec is compiled, and a compiled dialog resolves nothing until used — so it caches and re-runs cheaply.
 - A `use_message` window declares neither `menu` nor `data`: the target prototype controls both (compilation fails otherwise).
 
@@ -745,6 +746,24 @@ spec = b.dialog(
 Message data assembles in three layers, later ones winning: `{window_name_key: window_name}` → window `data` → render context. In wizard-style dialogs this removes the boilerplate of passing `{"state": ...}` through every `send_message` — `MessageFilter`/`EditedMessageFilter` route on the stamped window name directly.
 
 The **dialog itself** carries the same, symmetric with windows: `b.dialog(..., data={...}, config={...})`. `data` seeds the initial `dialog.data` (render context merged on top); `config` evaluates into `DialogConfig` (its keys are validated against the config schema at build time). Both are expression maps, interpreted by the dialog prototype's `get_data`/`get_config`.
+
+### Standalone messages and legacy names
+
+Some messages are not their own dialog — they are rendered by `edit_message` *into* another dialog (e.g. a repost/topic card). `compile_message(...)` compiles one such message directly, without wrapping it in a throwaway one-window dialog:
+
+```python
+from aiogram_dialog_manager.spec import compile_message
+
+topic = compile_message(
+    b.text("Card: ", b.data_.title, send_params={"parse_mode": "HTML"}),
+    name="game:topic",                                   # the message's exact type_name
+    menu=b.menu(b.row(b.button("open", "Open", type_name="open_card"))),
+    register=True,                                        # register message/menu/buttons under those names
+)
+```
+
+- The message prototype's `type_name` is exactly `name` — **author-controlled**. Its menu/button names derive from it (`{name}:menu`, `{name}:open`). `content`/`menu`/`data`/`defs` mirror a window; the rest of the keyword arguments mirror `compile_dialog` (`functions`/`providers`/`translator`/`prototypes`/`resolver`/`register`).
+- **Preserving a legacy name.** Inside a dialog, a window's message name is `{dialog}:{window}` by default. To keep an old prototype's exact `type_name` — so an in-flight persisted non-dialog message still resolves by its old name across a deploy — set `b.window(..., message_name="legacy_topic")` (DSL: `window w (message_name="legacy_topic") { … }`). Not allowed together with `use_message` (the target owns its name).
 
 ### Localization
 
@@ -827,9 +846,9 @@ dialog create_game (window_name_key="state", data=(step=0), config=(allow_reply_
 **One shape for the five declarations.** `dialog`, `window`, `menu`, `message`, `button` all read `<keyword> <name>? (config)? { children }`:
 
 - `( config )` — a flat, order-free map of parameters (`key = expr`).
-- `{ children }` — nested nodes (content, menu, rows, …). A **leaf** has no children and no braces, so a button is all config: `button back (text=…, data=(…), inline=(…), common=(…))`.
+- `{ children }` — nested nodes (content, menu, rows, …). A **leaf** has no children and no braces, so a button is all config: `button back (text=…, data=(…), inline=(…), common=(…), type_name=…)` — `type_name` opts a fresh inline button out of `{dialog}:{window}:{name}` namespacing so a short-name `ButtonFilter` catches it.
 - The name is **optional** — omit it and a deterministic `#N` marker name is synthesized. Name anything you reference from the DSL or wire from Python (`ButtonFilter`, window `state`).
-- `dialog`/`window` carry `data=(…)` (default data, expressions); `dialog` also takes `config=(…)` (validated `DialogConfig` fields) and `window_name_key=…`.
+- `dialog`/`window` carry `data=(…)` (default data, expressions); `dialog` also takes `config=(…)` (validated `DialogConfig` fields) and `window_name_key=…`. A `window` can pin its message's `type_name` with `message_name="…"` (preserve a legacy name).
 
 `row`, `foreach`, `if`, `chunk`, `slice`, `ref` and media items are **not** declarations and keep their own syntax (`row [ … ]`, `foreach x in …`).
 

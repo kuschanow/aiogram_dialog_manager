@@ -9,6 +9,7 @@ from aiogram_dialog_manager.spec.compile import (
     CompiledWindow,
     Namespace,
     compile_dialog,
+    compile_message,
     iter_spec_nodes,
 )
 from aiogram_dialog_manager.spec.content import (

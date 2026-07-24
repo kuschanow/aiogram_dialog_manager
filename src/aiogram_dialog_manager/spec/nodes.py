@@ -394,8 +394,16 @@ class ButtonSpec(EvaluableNode):
     data: dict[str, Value] = Field(default_factory=dict)
     inline: Optional[dict[str, Value]] = None
     common: Optional[dict[str, Value]] = None
+    #: Explicit ``type_name`` override for the rendered instance. By default an
+    #: inline button is namespaced ``{dialog}:{window}:{name}`` (so a bare-name
+    #: ``ButtonFilter`` never catches it by accident); set this to declare a
+    #: fresh button inline *and* have it caught by an existing short-name
+    #: handler — the escape hatch out of the namespacing. Must be a literal.
+    type_name: Optional[str] = None
 
-    def type_name(self, scope: EvalScope) -> str:
+    def resolve_type_name(self, scope: EvalScope) -> str:
+        if self.type_name is not None:
+            return self.type_name
         parts = [scope.runtime.dialog_name, scope.window_name, self.name]
         return ":".join(part for part in parts if part is not None)
 
@@ -423,7 +431,7 @@ class ButtonSpec(EvaluableNode):
     async def evaluate(self, scope: EvalScope) -> ButtonInstance:
         return ButtonInstance(
             text=await self.evaluate_text(scope),
-            type_name=self.type_name(scope),
+            type_name=self.resolve_type_name(scope),
             data=await self.evaluate_data(scope),
             inline_additional_parameters=await self.evaluate_inline_parameters(scope),
             common_additional_parameters=await self.evaluate_common_parameters(scope),
