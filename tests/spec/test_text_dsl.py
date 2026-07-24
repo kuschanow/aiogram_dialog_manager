@@ -153,9 +153,28 @@ def test_two_messages():
         win('message { text: "a" }  message { text: "b" }')
 
 
-def test_message_params_not_supported():
-    with pytest.raises(DSLSyntaxError, match="message parameters"):
-        win('message (parse_mode="HTML") { text: "a" }')
+def test_message_send_params():
+    spec = win('message (send_params=(parse_mode="HTML", disable_notification=true)) { text: "a" }')
+    content = first_content(spec)
+    assert content.type == "text"
+    assert content.send_params == {"parse_mode": "HTML", "disable_notification": True}
+
+
+def test_window_sugar_send_params():
+    spec = win('text: "a"', head="")
+    assert first_content(spec).send_params is None
+    spec = p('dialog d { window w (send_params=(parse_mode="MarkdownV2")) { text: "a" } }')
+    assert first_content(spec).send_params == {"parse_mode": "MarkdownV2"}
+
+
+def test_window_send_params_with_explicit_message_rejected():
+    with pytest.raises(DSLSyntaxError, match="put send_params on the message"):
+        p('dialog d { window w (send_params=(parse_mode="HTML")) { message { text: "a" } } }')
+
+
+def test_unknown_message_setting():
+    with pytest.raises(DSLSyntaxError, match="unknown message setting"):
+        win('message (bogus="x") { text: "a" }')
 
 
 def test_message_no_content():
@@ -708,6 +727,16 @@ def test_node_without_fields():
 def test_node_rejects_type_field():
     with pytest.raises(DSLSyntaxError, match=r"node\(\) takes the type"):
         win('text: node("op", type="x", op="+", args=[1, 2])')
+
+
+def test_format_node_via_generic_constructor():
+    from aiogram_dialog_manager.spec.nodes import FormatNode
+
+    # A format template carries literal braces — escape them (``{{`` / ``}}``) so
+    # the DSL string interpolator leaves the ``{a}`` placeholders for str.format.
+    node = win('text: node("format", template="{{a}}/{{b}}", kwargs=(a=data.n, b=2))').windows["w"].content.text
+    assert isinstance(node, FormatNode)
+    assert _eval_expr(node, {"n": 1}) == "1/2"
 
 
 # ── full round-trip + compile ────────────────────────────────────────────────

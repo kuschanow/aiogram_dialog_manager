@@ -16,6 +16,7 @@ from aiogram_dialog_manager.spec.content import (
     DocumentContentSpec,
     MediaGroupContentSpec,
     PhotoContentSpec,
+    SentContentSpec,
     TextContentSpec,
 )
 from aiogram_dialog_manager.spec.babel import extract_spec, iter_translation_keys
@@ -47,6 +48,7 @@ from aiogram_dialog_manager.spec.nodes import (
     ChunkNode,
     EscapeNode,
     ForeachNode,
+    FormatNode,
     IfNode,
     LiteralNode,
     MediaItemNode,

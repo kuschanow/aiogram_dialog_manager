@@ -36,6 +36,7 @@ from aiogram_dialog_manager.spec.nodes import (
     ChunkNode,
     EscapeNode,
     ForeachNode,
+    FormatNode,
     IfNode,
     LiteralNode,
     MediaItemNode,
@@ -160,6 +161,15 @@ def t(key: str) -> Expr:
     return Expr(TranslateNode(key=key))
 
 
+def format_(template: Any, *args: Any, **kwargs: Any) -> Expr:
+    """Fill ``{name}``/``{0}`` placeholders of ``template`` via ``str.format``.
+
+    ``template`` is any value — typically ``b.t("msgid")`` — so a translated
+    template with placeholders becomes fillable: ``b.format_(b.t("greet"),
+    name=b.data_.name)``."""
+    return Expr(FormatNode(template=template, args=list(args), kwargs=kwargs))
+
+
 def provider(name: str, **args: Any) -> Expr:
     return Expr(ProviderNode(name=name, args=args))
 
@@ -248,21 +258,34 @@ def use_message(name: str) -> UseMessageContentSpec:
     return UseMessageContentSpec(name=name)
 
 
-def text(*fragments: Any) -> TextContentSpec:
-    return TextContentSpec(text=fragments[0] if len(fragments) == 1 else list(fragments))
-
-
-def photo(media: Any, caption: Any = None, *, has_spoiler: Any = None, show_caption_above_media: Any = None) -> PhotoContentSpec:
-    return PhotoContentSpec(
-        photo=media, caption=caption,
-        has_spoiler=has_spoiler, show_caption_above_media=show_caption_above_media,
+def text(*fragments: Any, send_params: Optional[dict[str, Any]] = None) -> TextContentSpec:
+    return TextContentSpec(
+        text=fragments[0] if len(fragments) == 1 else list(fragments),
+        send_params=send_params,
     )
 
 
-def document(media: Any, caption: Any = None, *, disable_content_type_detection: Any = None) -> DocumentContentSpec:
+def photo(
+        media: Any, caption: Any = None, *,
+        has_spoiler: Any = None, show_caption_above_media: Any = None,
+        send_params: Optional[dict[str, Any]] = None,
+) -> PhotoContentSpec:
+    return PhotoContentSpec(
+        photo=media, caption=caption,
+        has_spoiler=has_spoiler, show_caption_above_media=show_caption_above_media,
+        send_params=send_params,
+    )
+
+
+def document(
+        media: Any, caption: Any = None, *,
+        disable_content_type_detection: Any = None,
+        send_params: Optional[dict[str, Any]] = None,
+) -> DocumentContentSpec:
     return DocumentContentSpec(
         document=media, caption=caption,
         disable_content_type_detection=disable_content_type_detection,
+        send_params=send_params,
     )
 
 
@@ -270,8 +293,8 @@ def media_item(media_type: str, media: Any, caption: Any = None, *, has_spoiler:
     return MediaItemNode(media_type=media_type, media=media, caption=caption, has_spoiler=has_spoiler)
 
 
-def media_group(*items: Any) -> MediaGroupContentSpec:
-    return MediaGroupContentSpec(items=list(items))
+def media_group(*items: Any, send_params: Optional[dict[str, Any]] = None) -> MediaGroupContentSpec:
+    return MediaGroupContentSpec(items=list(items), send_params=send_params)
 
 
 def window(

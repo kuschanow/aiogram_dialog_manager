@@ -9,6 +9,7 @@ from aiogram_dialog_manager.spec import (
     DocumentContentSpec,
     EscapeNode,
     ForeachNode,
+    FormatNode,
     IfNode,
     LiteralNode,
     MediaGroupContentSpec,
@@ -57,6 +58,10 @@ class TestExpressionHelpers:
         assert node(b.fn("len", b.data_.items)) == CallNode(name="len", args=[PathNode(path="data.items")])
         assert node(b.fn("round", 1.5, ndigits=1)) == CallNode(name="round", args=[1.5], kwargs={"ndigits": 1})
         assert node(b.t("welcome")) == TranslateNode(key="welcome")
+        assert node(b.format_(b.t("greet"), name=b.data_.name)) == FormatNode(
+            template=TranslateNode(key="greet"), kwargs={"name": PathNode(path="data.name")},
+        )
+        assert node(b.format_("{0}", b.data_.n)) == FormatNode(template="{0}", args=[PathNode(path="data.n")])
         assert node(b.provider("top", limit=5)) == ProviderNode(name="top", args={"limit": 5})
         assert node(b.ref("back")) == RefNode(name="back")
 
@@ -134,6 +139,13 @@ class TestContentAndModelHelpers:
         group = b.media_group(b.media_item("photo", "f1"), b.media_item("video", "f2", has_spoiler=True))
         assert isinstance(group, MediaGroupContentSpec)
         assert all(isinstance(item, MediaItemNode) for item in group.items)
+
+    def test_content_send_params(self):
+        content = b.text("hi", send_params={"parse_mode": "HTML", "link_preview_options": b.data_.lpo})
+        assert content.send_params["parse_mode"] == "HTML"
+        assert isinstance(content.send_params["link_preview_options"], PathNode)
+        assert b.text("hi").send_params is None
+        assert b.photo("f", send_params={"protect_content": True}).send_params == {"protect_content": True}
 
     def test_menu_window_dialog(self):
         spec = b.dialog(

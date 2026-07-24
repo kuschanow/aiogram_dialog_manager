@@ -32,7 +32,9 @@ class BaseContentSpec(SpecNode):
     """Base class of window content kinds.
 
     Not evaluable as an expression — instead it creates the message prototype
-    that interprets it.
+    that interprets it. The extension seam for new content *kinds*: a
+    user-defined kind subclasses this (or :class:`SentContentSpec` to also gain
+    send params) and registers itself.
     """
 
     def create_prototype(
@@ -43,8 +45,26 @@ class BaseContentSpec(SpecNode):
         raise NotImplementedError  # pragma: no cover - abstract
 
 
+class SentContentSpec(BaseContentSpec):
+    """Content the library itself renders and sends — as opposed to a delegated
+    ``use_message``, whose target prototype owns its send behaviour.
+
+    ``send_params`` carries the message *send* options (``parse_mode``,
+    ``link_preview_options``, ``disable_notification``, ...) as evaluable
+    :data:`Value` fields — so formatting/notification behaviour is part of the
+    serialized dialog and reachable by runtime/user-authored dialogs, not only
+    by a Python send-site. Evaluated into a
+    :class:`~aiogram_dialog_manager.instance.message.SendParams` and surfaced
+    through the message prototype's ``get_send_params``. Keys are validated
+    against ``SendParams`` at render time (unknown keys are ignored, mirroring
+    the other ``*_parameters`` fields).
+    """
+
+    send_params: Optional[dict[str, Value]] = None
+
+
 @node_registry.register
-class TextContentSpec(BaseContentSpec):
+class TextContentSpec(SentContentSpec):
     """A plain text message; ``text`` is a value or a list of fragments."""
 
     type: Literal["text"] = "text"
@@ -55,7 +75,7 @@ class TextContentSpec(BaseContentSpec):
 
 
 @node_registry.register
-class PhotoContentSpec(BaseContentSpec):
+class PhotoContentSpec(SentContentSpec):
     type: Literal["photo"] = "photo"
     photo: Value
     caption: Value = None
@@ -67,7 +87,7 @@ class PhotoContentSpec(BaseContentSpec):
 
 
 @node_registry.register
-class DocumentContentSpec(BaseContentSpec):
+class DocumentContentSpec(SentContentSpec):
     type: Literal["document"] = "document"
     document: Value
     caption: Value = None
@@ -78,7 +98,7 @@ class DocumentContentSpec(BaseContentSpec):
 
 
 @node_registry.register
-class MediaGroupContentSpec(BaseContentSpec):
+class MediaGroupContentSpec(SentContentSpec):
     """A media group; ``items`` render with splice semantics, so ``foreach``
     over ``data`` naturally produces a dynamic album."""
 

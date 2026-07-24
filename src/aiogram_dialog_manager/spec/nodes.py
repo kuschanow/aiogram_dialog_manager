@@ -187,6 +187,35 @@ class TranslateNode(EvaluableNode):
 
 
 @node_registry.register
+class FormatNode(EvaluableNode):
+    """String interpolation via ``str.format``.
+
+    Fills ``{name}`` / ``{0}`` placeholders of ``template`` with the evaluated
+    ``args`` (positional) and ``kwargs`` (named). ``template`` is itself a
+    :data:`Value` — most usefully a ``t`` node — so a translated msgid carrying
+    ``{placeholders}`` becomes directly fillable, closing the gap where ``t``
+    returns the msgid verbatim (fragment lists and DSL ``${...}`` holes cover
+    the concatenation case; this covers the single-template case).
+    """
+
+    type: Literal["format"] = "format"
+    template: Value
+    args: list[Value] = Field(default_factory=list)
+    kwargs: dict[str, Value] = Field(default_factory=dict)
+
+    async def evaluate(self, scope: EvalScope) -> Optional[str]:
+        template = await evaluate_value(self.template, scope)
+        if template is None:
+            return None
+        args = [await evaluate_value(arg, scope) for arg in self.args]
+        kwargs = {key: await evaluate_value(arg, scope) for key, arg in self.kwargs.items()}
+        try:
+            return str(template).format(*args, **kwargs)
+        except _EVALUATION_ERRORS as exc:
+            raise ExpressionEvaluationError(f"'format' failed: {exc}") from exc
+
+
+@node_registry.register
 class ProviderNode(EvaluableNode):
     """The escape hatch for external data: evaluated by a named Python
     provider ``(dialog, context, **kwargs)`` from the provider registry."""

@@ -194,6 +194,13 @@ class Transformer:
         data = None
         if "data" in config:
             data = self._map_value_to_dict(config.pop("data"), node, "data")
+        if "send_params" in config:
+            send_params = self._map_value_to_dict(config.pop("send_params"), node, "send_params")
+            if explicit_content is not None:
+                # An explicit 'message' owns its own send params; the window map
+                # would silently shadow or fight them.
+                raise _err(node, "window sets send_params but declares an explicit 'message'; put send_params on the message")
+            content.send_params = send_params
         if config:
             raise _err(node, f"unknown window setting(s): {', '.join(sorted(config))}")
 
@@ -217,8 +224,12 @@ class Transformer:
             return UseMessageContentSpec(name=name)
         # message_decl -> MESSAGE IDENT? map? LBRACE content_member* RBRACE
         _, _name_opt, map_opt, _lb, members_rep, _rb = node.children
-        if _opt(map_opt):
-            raise _err(node, "message parameters (parse_mode, ...) are not yet supported")
+        config = self._map(_opt(map_opt)) if _opt(map_opt) else {}
+        send_params = None
+        if "send_params" in config:
+            send_params = self._map_value_to_dict(config.pop("send_params"), node, "send_params")
+        if config:
+            raise _err(node, f"unknown message setting(s): {', '.join(sorted(config))}")
         fields: dict[str, Any] = {}
         media_groups: list[Any] = []
         for member in _rep(members_rep):
@@ -232,7 +243,10 @@ class Transformer:
                 media_groups.append(self._media_group(child))
         if not fields and not media_groups:
             raise _err(node, "message has no content")
-        return self._content_from_fields(node, fields, media_groups)
+        content = self._content_from_fields(node, fields, media_groups)
+        if send_params is not None:
+            content.send_params = send_params
+        return content
 
     def _content_from_fields(self, node: Any, fields: dict, media_groups: list) -> Any:
         if media_groups:
