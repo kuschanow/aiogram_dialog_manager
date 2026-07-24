@@ -225,6 +225,17 @@ def test_window_data():
     assert spec.windows["w"].data == {"attempts": 0}
 
 
+def test_window_message_name_override():
+    assert win('text: "h"').windows["w"].message_name is None
+    spec = p('dialog d { window w (message_name="legacy_topic") { text: "h" } }')
+    assert spec.windows["w"].message_name == "legacy_topic"
+
+
+def test_window_message_name_must_be_string():
+    with pytest.raises(DSLSyntaxError, match="message_name must be a string literal"):
+        p('dialog d { window w (message_name=data.x) { text: "h" } }')
+
+
 def test_unknown_window_setting():
     with pytest.raises(DSLSyntaxError, match="unknown window setting"):
         p('dialog d { window w (bogus=1) { text: "h" } }')
@@ -242,6 +253,17 @@ def test_button_common_channel():
     spec = win('text: "h"  menu { row [ button share (text="p", common=(request_contact=true)) ] }')
     btn = spec.windows["w"].menu.rows[0].items[0]
     assert btn.common == {"request_contact": True}
+
+
+def test_button_type_name_override():
+    spec = win('text: "h"  menu { row [ button fresh (text="x", type_name="cancel") ] }')
+    btn = spec.windows["w"].menu.rows[0].items[0]
+    assert btn.type_name == "cancel"
+
+
+def test_button_type_name_must_be_string():
+    with pytest.raises(DSLSyntaxError, match="type_name must be a string literal"):
+        win('text: "h"  menu { row [ button a (text="x", type_name=data.n) ] }')
 
 
 def test_button_missing_text():

@@ -20,6 +20,7 @@ from aiogram_dialog_manager.spec import (
     RefNode,
     SpecValidationError,
     compile_dialog,
+    compile_message,
     is_spec_registered,
     iter_spec_nodes,
     register_spec_prototype,
@@ -156,6 +157,23 @@ class TestCompiledDialog:
         compiled = compile_dialog(make_spec())
         assert compiled.windows.notify.menu is None
         assert len(compiled.windows.notify.buttons) == 0
+
+    def test_message_name_override(self):
+        spec = make_spec()
+        spec.windows["main"].message_name = "legacy_main"
+        compiled = compile_dialog(spec)
+        # Message + its buttons/menu re-based on the override; dialog name unchanged.
+        assert compiled.windows.main.message.name == "legacy_main"
+        assert compiled.windows.main.menu.name == "legacy_main:menu"
+        assert compiled.windows.main.buttons.save.name == "legacy_main:save"
+
+    def test_message_name_override_rejected_for_use_message(self):
+        spec = DialogSpec.from_dict({
+            "name": "d",
+            "windows": {"w": {"content": {"type": "use_message", "name": "err"}, "message_name": "x"}},
+        })
+        with pytest.raises(SpecValidationError, match="controls its own message_name"):
+            compile_dialog(spec)
 
     def test_accepts_canonical_dict(self):
         compiled = compile_dialog(make_spec().to_dict())
@@ -610,3 +628,84 @@ class TestPrototypeFactory:
         assert BaseMessagePrototype._registry["settings:main"] is compiled.windows.main.message
         assert MenuPrototype._registry["settings:main:menu"] is compiled.windows.main.menu
         assert isinstance(DialogPrototype._registry["settings"], _MarkedDialog)
+
+
+class TestCompileMessage:
+    """Standalone message compilation (no throwaway one-window dialog)."""
+
+    def _content(self, **extra):
+        return {"type": "text", "text": ["Card: ", {"type": "path", "path": "data.title"}], **extra}
+
+    async def test_author_controlled_name_and_render(self):
+        proto = compile_message(self._content(), name="game:topic")
+        assert isinstance(proto, SpecTextMessagePrototype)
+        assert proto.name == "game:topic"
+        content = await proto.get_text_content(FakeDialog({"title": "X"}), None)
+        assert content.text == "Card: X"
+
+    async def test_menu_and_button_names_derived_from_name(self):
+        proto = compile_message(
+            self._content(),
+            name="topic",
+            menu={"rows": [[{"type": "button", "name": "open", "text": "Open", "data": {"id": {"type": "path", "path": "data.id"}}}]]},
+        )
+        assert proto.menu_prototype.name == "topic:menu"
+        instance = await proto.get_instance(FakeDialog({"title": "T", "id": 7}), None)
+        assert instance.type_name == "topic"
+        assert instance.menu.buttons[0][0].type_name == "topic:open"
+        assert instance.menu.buttons[0][0].data == {"id": 7}
+
+    def test_use_menu_delegated(self):
+        from aiogram_dialog_manager.spec.use import UseMenuPrototype
+
+        proto = compile_message(self._content(), name="m", menu={"type": "use_menu", "name": "shared"})
+        assert isinstance(proto.menu_prototype, UseMenuPrototype)
+        assert proto.menu_prototype.name == "shared"
+
+    async def test_send_params_and_translator(self):
+        proto = compile_message(
+            {"type": "text", "text": {"type": "t", "key": "hi"}, "send_params": {"parse_mode": "HTML"}},
+            name="m",
+            translator=lambda msgid, locale: f"[{msgid}]",
+        )
+        instance = await proto.get_instance(FakeDialog(), None)
+        assert instance.text == "[hi]"
+        assert instance.send_params.parse_mode == "HTML"
+
+    async def test_defs_and_ref(self):
+        proto = compile_message(
+            {"type": "text", "text": {"type": "ref", "name": "greeting"}},
+            name="m",
+            defs={"greeting": "hello"},
+        )
+        assert (await proto.get_text_content(FakeDialog(), None)).text == "hello"
+
+    def test_unknown_ref_rejected(self):
+        with pytest.raises(SpecValidationError, match="Reference 'missing'"):
+            compile_message({"type": "text", "text": {"type": "ref", "name": "missing"}}, name="m")
+
+    def test_duplicate_button_name_rejected(self):
+        menu = {"rows": [
+            [{"type": "button", "name": "b", "text": "1"}],
+            [{"type": "button", "name": "b", "text": "2"}],
+        ]}
+        with pytest.raises(SpecValidationError, match="Duplicate button name 'b'"):
+            compile_message({"type": "text", "text": "x"}, name="m", menu=menu)
+
+    def test_use_message_content_rejects_menu(self):
+        with pytest.raises(SpecValidationError, match="controls its own menu"):
+            compile_message(
+                {"type": "use_message", "name": "err"}, name="m",
+                menu={"rows": [[{"type": "button", "name": "b", "text": "x"}]]},
+            )
+
+    def test_register_under_author_names(self, clean_registries):
+        proto = compile_message(
+            self._content(),
+            name="game:topic",
+            menu={"rows": [[{"type": "button", "name": "open", "text": "Open"}]]},
+            register=True,
+        )
+        assert BaseMessagePrototype._registry["game:topic"] is proto
+        assert MenuPrototype._registry["game:topic:menu"] is proto.menu_prototype
+        assert is_spec_registered(ButtonPrototype, "game:topic:open")

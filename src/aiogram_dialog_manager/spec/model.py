@@ -81,6 +81,13 @@ class WindowSpec(BaseModel):
     content: ContentValue
     menu: Annotated[Optional[Union[UseMenuNode, MenuSpec]], BeforeValidator(_resolve_menu)] = None
     data: Optional[dict[str, Value]] = None
+    #: Override for the message prototype's ``type_name`` (and the base of its
+    #: button/menu names). By default it is ``{dialog}:{window}``, so a legacy
+    #: prototype's exact name cannot be preserved; set this to pin it — e.g. so
+    #: an in-flight persisted non-dialog message keeps resolving by its old name
+    #: across a deploy. Not allowed with ``use_message`` (the target owns its
+    #: name).
+    message_name: Optional[str] = Field(default=None, min_length=1)
 
 
 class DialogSpec(BaseModel):
