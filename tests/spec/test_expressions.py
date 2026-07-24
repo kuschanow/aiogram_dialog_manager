@@ -4,6 +4,7 @@ import pytest
 from aiogram_dialog_manager.spec import (
     CallNode,
     ExpressionEvaluationError,
+    FormatNode,
     LiteralNode,
     OpNode,
     PathNode,
@@ -245,6 +246,34 @@ class TestTranslateNode:
     async def test_with_translator_without_locale(self, make_scope):
         scope = make_scope(translator=lambda msgid, locale: f"{msgid}/{locale}")
         assert await TranslateNode(key="k").evaluate(scope) == "k/None"
+
+
+class TestFormatNode:
+    async def test_named_placeholders(self, make_scope):
+        scope = make_scope(data={"name": "Roman"})
+        node = FormatNode(template="Hi, {name}!", kwargs={"name": PathNode(path="data.name")})
+        assert await node.evaluate(scope) == "Hi, Roman!"
+
+    async def test_positional_placeholders(self, make_scope):
+        scope = make_scope(data={"n": 3})
+        node = FormatNode(template="{0}/{1}", args=[PathNode(path="data.n"), 10])
+        assert await node.evaluate(scope) == "3/10"
+
+    async def test_template_is_a_value_translated_msgid(self, make_scope):
+        scope = make_scope(translator=lambda msgid, locale: "Привет, {name}", context={"locale": "ru"})
+        node = FormatNode(template=TranslateNode(key="greeting"), kwargs={"name": "Роман"})
+        assert await node.evaluate(scope) == "Привет, Роман"
+
+    async def test_none_template_returns_none(self, make_scope):
+        scope = make_scope()
+        node = FormatNode(template=LiteralNode(value=None), kwargs={"x": 1})
+        assert await node.evaluate(scope) is None
+
+    async def test_missing_placeholder_wrapped(self, make_scope):
+        scope = make_scope()
+        node = FormatNode(template="{missing}")
+        with pytest.raises(ExpressionEvaluationError, match="'format' failed"):
+            await node.evaluate(scope)
 
 
 class TestProviderNode:

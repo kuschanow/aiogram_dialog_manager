@@ -27,6 +27,7 @@ from aiogram_dialog_manager.instance.button import (
 )
 from aiogram_dialog_manager.instance.dialog import DialogConfig
 from aiogram_dialog_manager.instance.menu import AdditionalReplyMenuParameters, MenuInstance
+from aiogram_dialog_manager.instance.message import SendParams
 from aiogram_dialog_manager.prototype.base import BaseMessagePrototype, TextContent
 from aiogram_dialog_manager.prototype.button import ButtonPrototype
 from aiogram_dialog_manager.prototype.dialog import DialogPrototype
@@ -244,6 +245,14 @@ class SpecMessagePrototypeMixin(SpecPrototypeMixin):
             data.update({key: await evaluate_value(value, scope) for key, value in self._window_data.items()})
         data.update(context or {})
         return data
+
+    async def get_send_params(self, dialog: "DialogOperator", context: Optional[dict[str, Any]]) -> SendParams:
+        send_params = getattr(self._content, "send_params", None)
+        if not send_params:
+            return SendParams()
+        scope = self._scope(dialog, context)
+        rendered = {key: await evaluate_value(value, scope) for key, value in send_params.items()}
+        return SendParams.model_validate(rendered)
 
 
 class SpecTextMessagePrototype(SpecMessagePrototypeMixin, TextMessagePrototype):

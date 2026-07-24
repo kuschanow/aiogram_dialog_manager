@@ -290,6 +290,44 @@ class TestMessagePrototypes:
         media = await prototype.get_media(dialog, None)
         assert [m.media for m in media] == ["f1", "f2"]
 
+    async def test_send_params_default_when_absent(self):
+        from aiogram.client.default import Default
+
+        compiled = compile_dialog(make_spec())
+        params = await compiled.windows.main.message.get_send_params(FakeDialog(), None)
+        assert isinstance(params.parse_mode, Default)
+
+    async def test_send_params_evaluated_and_dynamic(self):
+        spec = DialogSpec.from_dict({
+            "name": "d",
+            "windows": {"w": {"content": {
+                "type": "text",
+                "text": "hi",
+                "send_params": {
+                    "parse_mode": {"type": "path", "path": "data.mode"},
+                    "disable_notification": True,
+                },
+            }}},
+        })
+        prototype = compile_dialog(spec).windows.w.message
+        params = await prototype.get_send_params(FakeDialog({"mode": "HTML"}), None)
+        assert params.parse_mode == "HTML"
+        assert params.disable_notification is True
+        # Unset params keep their aiogram Default sentinels (not overridden).
+        from aiogram.client.default import Default
+        assert isinstance(params.protect_content, Default)
+
+    async def test_send_params_surfaced_in_instance(self):
+        spec = DialogSpec.from_dict({
+            "name": "d",
+            "windows": {"w": {"content": {
+                "type": "text", "text": "hi",
+                "send_params": {"parse_mode": "MarkdownV2"},
+            }}},
+        })
+        instance = await compile_dialog(spec).windows.w.message.get_instance(FakeDialog(), None)
+        assert instance.send_params.parse_mode == "MarkdownV2"
+
     async def test_get_menu_returns_instance(self):
         compiled = compile_dialog(make_spec())
         menu = await compiled.windows.main.message.get_menu(FakeDialog({"is_admin": True}), None)

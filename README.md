@@ -636,6 +636,7 @@ b.data_.name | "anonymous"          # or with Python semantics (returns operand)
 b.fn("len", b.data_.players)        # function call from the open registry
 b.provider("top_players", limit=5)  # escape hatch: named Python provider (may hit DB/network)
 b.t("welcome_text")                 # translatable string (see i18n below)
+b.format_(b.t("greeting"), name=b.data_.name)  # fill {name} in a (translated) template
 ```
 
 - Namespaces are explicit: `data.*` (persistent `dialog.data`), `ctx.*` (render context), `item`/`index` inside `foreach`.
@@ -653,6 +654,7 @@ b.t("welcome_text")                 # translatable string (see i18n below)
 | `def` / `ref` | named reusable fragments inside the model (a shared "Back" button, common footer) |
 | `provider` | named Python provider from the registry — the only door to external data |
 | `t` | translatable string |
+| `format` | fill `{name}`/`{0}` placeholders of a template (usually a `t` node) via `str.format` |
 | `use_button` / `use_menu` / `use_message` | plug an existing registered Python prototype into the spec (see below) |
 
 Rows that render empty are dropped; a menu whose rows are all empty produces no keyboard at all.
@@ -752,6 +754,8 @@ The **dialog itself** carries the same, symmetric with windows: `b.dialog(..., d
 compile_dialog(spec, translator=my_gettext_hook)
 ```
 
+`b.t(...)` returns the msgid verbatim; to fill placeholders in a translated template wrap it in `format`: `b.format_(b.t("greeting"), name=b.data_.name)` fills `{name}` (and positional `{0}`) via `str.format` after the msgid is translated. Fragment lists (`b.text(b.t("hi"), " ", b.data_.name)`) and DSL string holes (`"{data.name}"`) cover the concatenation case; `format` covers the single-template case.
+
 **Extracting msgids for gettext.** `pybabel` does not pick up `b.t(...)` calls by default — add `-k t` on the command line (keywords cannot be set per-section in a mapping file: the `python` extractor ignores a `keywords` option there):
 
 ```bash
@@ -831,6 +835,8 @@ dialog create_game (window_name_key="state", data=(step=0), config=(allow_reply_
 
 **Content.** A window's content is either inline fields (sugar for an anonymous message) or an explicit `message { … }` / `message("proto")` — never both. Fields: `text:` · `photo:` (+ `caption`, `has_spoiler`, `show_caption_above_media`) · `document:` (+ `caption`, `disable_content_type_detection`); or `media_group { … }` with positional items `photo <expr> [caption: …] [has_spoiler: …]` (`photo`/`video`/`document`/`audio`), spliced by `foreach`/`if`.
 
+**Send parameters.** How a message is *sent* — `parse_mode`, `link_preview_options`, `disable_notification`, `protect_content`, … — lives in `send_params=(…)`, an order-free map of expressions surfaced through the prototype's `get_send_params` (validated against `SendParams` at render time). For inline content it goes on the window: `window w (send_params=(parse_mode="HTML")) { text: "<b>hi</b>" }`; for an explicit block it goes on the message: `message (send_params=(disable_notification=true)) { text: … }`. In the builder it is a keyword on each content helper: `b.text("<b>hi</b>", send_params={"parse_mode": "HTML"})`. Because the values are expressions, formatting can be dynamic and travels with a serialized/runtime-authored dialog — no Python send-site required.
+
 **Menu, rows, structural.** `menu (keyboard_type="reply", reply_parameters=(…)) { <rows/structural> }` (or `menu("shared")`); `row [ <buttons/refs/structural> ]` (comma-separated); `if <expr> { … } else { … }`; `foreach <alias>[, <index>] in <expr> { … }` (`item`/`index` stay bound; aliases let a nested `foreach` reach the outer element); `chunk <expr> { … }`.
 
 **Expressions & strings.** Operators `< > <= >= == != + - * / % and or not in "not in"`, unary `-`/`not`, grouping `( … )`, standard precedence. Paths `data.x` / `item.0`, calls `join(data.tags, ", ")`, list `[ … ]`, inline map `( k=v, … )`. Registry forms: `t("msgid")`, `provider("name", k=v)`, `ref name` / `ref("name")`, `slice(over, start, stop)`, and prototype refs `button("name")` / `menu("name")` / `message("name")`.
@@ -846,6 +852,7 @@ dialog create_game (window_name_key="state", data=(step=0), config=(allow_reply_
 | operators | `a + b`, `x and y`, `not z`, … | `op` |
 | function call | `join(data.tags, ", ")` | `call` |
 | translation | `t("msgid")` | `t` |
+| format | `node("format", template=t("g"), kwargs=(name=data.name))` | `format` |
 | provider | `provider("name", k=v)` | `provider` |
 | fresh reuse | `ref name` / `ref("name")` | `ref` |
 | slice | `slice(over, start, stop)` | `slice` |
@@ -859,7 +866,7 @@ dialog create_game (window_name_key="state", data=(step=0), config=(allow_reply_
 
 **The generic escape hatch.** `node("type_name", field=expr, …)` builds *any* registered node kind by name — the way to reach node kinds without dedicated sugar from the text DSL: your **own custom node kinds**, or `literal` for fully-opaque data (`node("literal", value=…)`). It is deliberately verbose (positional `type` first, then `key=value` fields); use the sugared forms above for the common kinds. So nothing is truly out of reach from the DSL — only some kinds need the verbose form.
 
-**Current limits.** Names passed to `button(...)`/`menu(...)`/`message(...)`/`ref(...)`/`t(...)` must be **string literals** (a non-literal argument raises a clear error); a spec-level `message` takes no send parameters (`parse_mode`, …) yet; general calls take positional args only (`provider` is the exception that takes `k=v`).
+**Current limits.** Names passed to `button(...)`/`menu(...)`/`message(...)`/`ref(...)`/`t(...)` must be **string literals** (a non-literal argument raises a clear error); general calls take positional args only (`provider` and `send_params=(…)` are the exceptions that take `k=v`).
 
 ### Extensibility
 
