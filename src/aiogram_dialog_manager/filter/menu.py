@@ -3,6 +3,7 @@ from typing import Optional, Union
 from aiogram.filters import Filter
 from aiogram.types import CallbackQuery
 
+from aiogram_dialog_manager.filter._matching import data_matches
 from aiogram_dialog_manager.instance.menu import AnyMenuInstance
 from aiogram_dialog_manager.prototype.menu import MenuPrototype
 
@@ -17,4 +18,4 @@ class MenuFilter(Filter):
     async def __call__(self, callback: CallbackQuery, menu: Optional[AnyMenuInstance] = None):
         return (menu is not None
                 and (not self.menu_names or menu.type_name in self.menu_names)
-                and set(self.data.items()).issubset(set(menu.data.items())))
+                and data_matches(menu.data, self.data))

@@ -87,3 +87,42 @@ class TestButtonFilter:
         btn = self._make_button("cancel_btn", data={"confirmed": "no"})
         f = ButtonFilter("ok_btn", "cancel_btn", confirmed="yes")
         assert not await f(MagicMock(), button=btn)
+
+    async def test_passes_with_unhashable_button_data(self):
+        # Regression: button.data may hold dict/list values. A set-based subset
+        # check raised "TypeError: unhashable type: 'dict'"; matching by key must
+        # tolerate unhashable values it does not filter on.
+        btn = self._make_button("ok_btn", data={"x": "1", "payload": {"a": [1, 2]}})
+        f = ButtonFilter("ok_btn", x="1")
+        assert await f(MagicMock(), button=btn) is True
+
+    async def test_name_only_match_ignores_unhashable_button_data(self):
+        btn = self._make_button("ok_btn", data={"payload": {"a": [1, 2]}, "items": [1, 2]})
+        f = ButtonFilter("ok_btn")
+        assert await f(MagicMock(), button=btn) is True
+
+    async def test_matches_unhashable_data_value_by_equality(self):
+        btn = self._make_button("ok_btn", data={"payload": {"a": [1, 2]}})
+        f = ButtonFilter("ok_btn", payload={"a": [1, 2]})
+        assert await f(MagicMock(), button=btn) is True
+
+    async def test_matches_nested_path_with_separator(self):
+        btn = self._make_button("ok_btn", data={"payload": {"action": "confirm"}})
+        f = ButtonFilter("ok_btn", payload__action="confirm")
+        assert await f(MagicMock(), button=btn) is True
+
+    async def test_fails_nested_path_wrong_value(self):
+        btn = self._make_button("ok_btn", data={"payload": {"action": "cancel"}})
+        f = ButtonFilter("ok_btn", payload__action="confirm")
+        assert not await f(MagicMock(), button=btn)
+
+    async def test_fails_nested_path_missing_key(self):
+        btn = self._make_button("ok_btn", data={"payload": {}})
+        f = ButtonFilter("ok_btn", payload__action="confirm")
+        assert not await f(MagicMock(), button=btn)
+
+    async def test_literal_key_with_separator_still_matches(self):
+        # Backward compatible: an exact top-level key wins over path-splitting.
+        btn = self._make_button("ok_btn", data={"a__b": "1"})
+        f = ButtonFilter("ok_btn", a__b="1")
+        assert await f(MagicMock(), button=btn) is True

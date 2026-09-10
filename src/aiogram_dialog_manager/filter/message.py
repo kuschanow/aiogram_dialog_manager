@@ -3,6 +3,7 @@ from typing import Optional, Union
 from aiogram.filters import Filter
 from aiogram.types import CallbackQuery
 
+from aiogram_dialog_manager.filter._matching import data_matches
 from aiogram_dialog_manager.instance.message import BotMessageRecord
 from aiogram_dialog_manager.prototype import BaseMessagePrototype
 
@@ -17,4 +18,4 @@ class MessageFilter(Filter):
     async def __call__(self, callback: CallbackQuery, message_record: Optional[BotMessageRecord] = None):
         return (message_record is not None
                 and (not self.message_names or message_record.type_name in self.message_names)
-                and set(self.data.items()).issubset(set(message_record.data.items())))
+                and data_matches(message_record.data, self.data))
