@@ -3,6 +3,7 @@ from typing import Optional, Union, TYPE_CHECKING
 from aiogram.filters import Filter
 from aiogram.types import TelegramObject
 
+from aiogram_dialog_manager.filter._matching import data_matches
 from aiogram_dialog_manager.prototype.dialog import DialogPrototype
 
 if TYPE_CHECKING:
@@ -19,4 +20,4 @@ class DialogFilter(Filter):
     async def __call__(self, event: TelegramObject, dialog: Optional["DialogOperator"] = None):
         return (dialog is not None
                 and (not self.dialog_names or dialog.name in self.dialog_names)
-                and set(self.data.items()).issubset(set(dialog.data.items())))
+                and data_matches(dialog.data, self.data))

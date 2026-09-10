@@ -3,6 +3,7 @@ from typing import Optional, Union
 from aiogram.filters import Filter
 from aiogram.types import CallbackQuery
 
+from aiogram_dialog_manager.filter._matching import data_matches
 from aiogram_dialog_manager.instance.button import ButtonInstance
 from aiogram_dialog_manager.prototype.button import ButtonPrototype
 
@@ -17,4 +18,4 @@ class ButtonFilter(Filter):
     async def __call__(self, callback: CallbackQuery, button: Optional[ButtonInstance] = None):
         return (button is not None
                 and (not self.button_names or button.type_name in self.button_names)
-                and set(self.data.items()).issubset(set(button.data.items())))
+                and data_matches(button.data, self.data))

@@ -481,6 +481,31 @@ EditedMessageFilter(step="input")             # edited message has matching data
 DialogAccessFilter()                          # ownership check
 ```
 
+#### Data matching
+
+`DialogFilter`, `ButtonFilter`, `MenuFilter`, `MessageFilter` and
+`EditedMessageFilter` accept `**data` criteria matched against the resolved
+object's `data` dict. A filter passes when **every** criterion matches; passing
+no criteria matches any data.
+
+Values are compared by equality and are **never hashed**, so `data` may hold
+unhashable values (`dict`/`list`) — only the keys you actually filter on are
+inspected:
+
+```python
+# button.data == {"action": "confirm", "payload": {"items": [1, 2]}}
+ButtonFilter("cart_btn", action="confirm")     # passes — payload is ignored
+ButtonFilter("cart_btn", payload={"items": [1, 2]})  # whole value compared by ==
+```
+
+Use the `__` separator to match a **nested** value. An exact top-level key is
+tried first, so a literal key containing `__` keeps working:
+
+```python
+# button.data == {"payload": {"action": "confirm"}}
+ButtonFilter("cart_btn", payload__action="confirm")  # nested path
+```
+
 ### What the middleware injects
 
 #### On `Message`
